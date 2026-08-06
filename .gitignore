@@ -1,0 +1,5 @@
+# See frontend/.gitignore and backend/.gitignore for stack-specific rules.
+.DS_Store
+*.log
+.env
+.env.local
