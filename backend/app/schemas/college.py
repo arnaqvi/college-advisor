@@ -10,6 +10,7 @@ figures for `admitRate`/`satBand`/`actBand` when a program doesn't carry its
 own override (see app/models/college.py's module docstring for why).
 """
 
+from datetime import date, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -88,3 +89,35 @@ class ProgramOut(CamelModel):
     # rendering. Lets the UI (or a future admin view) show provenance.
     data_source: str | None = None
     last_synced_at: str | None = None
+
+
+class DeadlineOverrideIn(CamelModel):
+    """See app/models/college.py's `DeadlineOverride` docstring for why this
+    is per-user rather than a write to `College.deadlines`.
+
+    First schema in this file used as a request body rather than only a
+    response — validating a `date | None` field here triggers a benign
+    Pydantic `UnsupportedFieldAttributeWarning` (an internal quirk of
+    alias_generator + Optional fields on the *validation* path specifically;
+    response-only schemas above never hit it). Confirmed harmless: aliasing
+    still round-trips correctly, see tests/test_deadline_overrides.py."""
+
+    ed_date: date | None = None
+    ea_date: date | None = None
+    rd_date: date | None = None
+    rolling: bool = False
+    note: str | None = None
+
+
+class DeadlineOverrideOut(CamelModel):
+    # Not a subclass of DeadlineOverrideIn — re-applying CamelModel's
+    # alias_generator to already-aliased inherited fields trips a Pydantic
+    # UnsupportedFieldAttributeWarning (confirmed: only appears once this
+    # class inherits rather than redeclaring the fields directly).
+    program_slug: str
+    ed_date: date | None = None
+    ea_date: date | None = None
+    rd_date: date | None = None
+    rolling: bool = False
+    note: str | None = None
+    updated_at: datetime

@@ -54,12 +54,23 @@ export function useRevealOnMount(deps = []) {
 
     elements.forEach((element) => observer.observe(element))
 
-    // Safety net: nothing may stay invisible. Anything not revealed shortly
-    // after mount (very tall element, async content, prefers-reduced-motion)
-    // is shown unconditionally.
+    // Safety net: nothing may stay invisible forever. NOT a routine reveal
+    // path — threshold:0 above already correctly reveals every element as
+    // it's actually scrolled into view, on a page of any height. This is
+    // only for genuinely pathological cases (an element the observer somehow
+    // never fires for at all). Discovered 2026-08-10: this was originally
+    // 400ms, which is far shorter than it takes a real person to scroll even
+    // partway down a long page (e.g. the homepage) — so on any page taller
+    // than a quick 400ms scroll covers, this fired and force-revealed
+    // everything below the fold BEFORE the user ever scrolled there,
+    // silently defeating the entire scroll-triggered reveal for the rest of
+    // the page. Short pages (Dashboard, Profile) never showed the bug since
+    // there was nothing far enough below the fold for the timing to matter.
+    // 4s is long enough that legitimate scrolling always wins the race on
+    // any real page, while still being a genuine backstop.
     const failsafe = setTimeout(() => {
       document.querySelectorAll('[data-reveal]:not(.visible)').forEach(reveal)
-    }, 400)
+    }, 4000)
 
     return () => {
       clearTimeout(failsafe)

@@ -15,7 +15,19 @@ import { gapAnalysisForCollege } from './engine/benchmarkGapAnalysis.js'
 import { buildSnapshot } from './engine/snapshot.js'
 
 export function generatePlan(studentProfile, { colleges = [] } = {}) {
-  const classifiedPrograms = classifyAllPrograms(studentProfile, colleges)
+  // Sorted here, once, at the source — every page below (Programs, Strategy,
+  // Gap Analysis, Counselor Bias Check's suggestions) either maps this array
+  // directly or filters/slices it without its own re-sort, so without this
+  // they all silently fell back to raw backend array order — i.e. seed-file
+  // order, which is why the same handful of schools (whichever were seeded
+  // first) always appeared first regardless of the student's actual profile.
+  // fitScore is the same per-student ranking signal CollegeDirectory.jsx and
+  // hiddenGems.js already use; CollegeDirectory re-sorts its own filtered
+  // view anyway, so this doesn't change its behavior, only the pages that
+  // had no sort of their own.
+  const classifiedPrograms = classifyAllPrograms(studentProfile, colleges).sort(
+    (a, b) => b.fitScore - a.fitScore || a.name.localeCompare(b.name)
+  )
 
   const programDeepDive = classifiedPrograms.map((program) => ({
     ...program,

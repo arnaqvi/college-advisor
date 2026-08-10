@@ -32,6 +32,15 @@ export const TIMELINE = [
     parentTasks: ['Verify financial aid submissions are complete'],
   },
   {
+    // Added for Retention Phase 2 (real per-school deadlines) — several
+    // curated schools (DePauw, Indiana Bloomington, Trinity) have a real
+    // February 1 Regular Decision deadline, which the original 7-month
+    // skeleton had no bucket for at all.
+    month: 'February',
+    studentTasks: ['Submit any remaining applications with February deadlines'],
+    parentTasks: ['Keep tracking decision dates as they arrive across every school'],
+  },
+  {
     month: 'March',
     studentTasks: ['Compare financial aid award letters as they arrive'],
     parentTasks: ['Schedule admitted-student visits'],

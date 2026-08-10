@@ -161,9 +161,16 @@ async def test_sync_endpoint_reports_not_configured_without_api_key(seeded_colle
     """
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.post(
-            "/api/colleges/sync", headers={"X-User-Email": "test@college-advisor.app"}
+        await client.post(
+            "/api/auth/register",
+            json={
+                "email": "test@college-advisor.app",
+                "password": "correct horse battery",
+                "name": "Test User",
+                "role": "student",
+            },
         )
+        response = await client.post("/api/colleges/sync")
 
     assert response.status_code == 200
     body = response.json()

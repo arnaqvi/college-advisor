@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext.jsx'
+import BrandMark from './BrandMark.jsx'
 
 const navItems = [
   { label: 'Product', href: '#product' },
@@ -9,6 +11,13 @@ const navItems = [
 
 export default function Navbar() {
   const [isCompact, setIsCompact] = useState(false)
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+
+  async function handleLogout() {
+    await logout()
+    navigate('/login', { replace: true })
+  }
 
   useEffect(() => {
     const onScroll = () => setIsCompact(window.scrollY > 40)
@@ -33,10 +42,10 @@ export default function Navbar() {
         }`}
       >
         <Link to="/" className="flex items-center gap-3 text-[#101210]">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-[9px] bg-[#0E0F0C] text-[11px] font-bold text-[#7CF5C4]">
-            CP
+          <BrandMark size={28} />
+          <span className="font-display text-[18px] font-extrabold tracking-tight">
+            College<span className="text-accent-contrast">Path</span>
           </span>
-          <span className="font-display text-[18px] font-extrabold tracking-tight">CollegePath</span>
         </Link>
 
         <nav className="hidden items-center gap-10 text-[14.5px] font-medium text-[#5B5E58] md:flex">
@@ -54,18 +63,39 @@ export default function Navbar() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <Link
-            to="/login"
-            className="text-sm font-medium text-[#5B5E58] transition-colors duration-300 hover:text-[#101210]"
-          >
-            Log in
-          </Link>
-          <Link
-            to="/login"
-            className="landing-button-dark inline-flex items-center justify-center rounded-full bg-[#0E0F0C] px-5 py-2.5 text-sm font-semibold text-white"
-          >
-            Get Started
-          </Link>
+          {user ? (
+            <>
+              <span className="hidden text-sm font-medium text-[#5B5E58] sm:inline">{user.name || user.email}</span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="text-sm font-medium text-[#5B5E58] transition-colors duration-300 hover:text-[#101210]"
+              >
+                Log out
+              </button>
+              <Link
+                to="/dashboard"
+                className="landing-button-dark inline-flex items-center justify-center rounded-full bg-[#0E0F0C] px-5 py-2.5 text-sm font-semibold text-white"
+              >
+                Go to Dashboard
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="text-sm font-medium text-[#5B5E58] transition-colors duration-300 hover:text-[#101210]"
+              >
+                Log in
+              </Link>
+              <Link
+                to="/login"
+                className="landing-button-dark inline-flex items-center justify-center rounded-full bg-[#0E0F0C] px-5 py-2.5 text-sm font-semibold text-white"
+              >
+                Get Started
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>

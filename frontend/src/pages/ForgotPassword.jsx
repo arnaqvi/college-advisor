@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { KeyRound } from 'lucide-react'
 import AuthLayout from '../components/AuthLayout.jsx'
 import AuthFormHeader from '../components/AuthFormHeader.jsx'
+import { requestPasswordReset } from '../lib/api/auth.js'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const VALID_ROLES = new Set(['student', 'parent', 'counselor'])
@@ -14,9 +15,10 @@ export default function ForgotPassword() {
 
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!email.trim()) {
       setError('Email address is required.')
@@ -27,9 +29,17 @@ export default function ForgotPassword() {
       return
     }
     setError('')
-    // Intentionally does not reveal whether the account exists — same
-    // confirmation message is shown either way.
-    setSubmitted(true)
+    setSubmitting(true)
+    try {
+      // Backend always returns the same generic {ok: true} whether or not
+      // the account exists — intentionally does not reveal which case it was.
+      await requestPasswordReset(email.trim())
+      setSubmitted(true)
+    } catch {
+      setError('Something went wrong sending the reset link. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -73,9 +83,10 @@ export default function ForgotPassword() {
 
           <button
             type="submit"
-            className="w-full rounded-md bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-400"
+            disabled={submitting}
+            className="w-full rounded-md bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Send Reset Link
+            {submitting ? 'Sending…' : 'Send Reset Link'}
           </button>
 
           <Link to={backToLoginPath} className="block text-center text-sm text-slate-500 hover:underline">

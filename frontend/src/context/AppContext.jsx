@@ -2,6 +2,11 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { getStaleGroups } from '../data/specRetrigger.js'
 import { generatePlan } from '../lib/recommendationEngine.js'
 import { fetchColleges } from '../lib/api/colleges.js'
+import {
+  fetchDeadlineOverrides,
+  setDeadlineOverride as putDeadlineOverride,
+  deleteDeadlineOverride as removeDeadlineOverrideApi,
+} from '../lib/api/deadlineOverrides.js'
 import { fetchProfile, putProfile } from '../lib/api/profile.js'
 import { SAMPLE_PROFILE } from '../data/sampleProfile.js'
 import { useAuth } from './AuthContext.jsx'
@@ -62,6 +67,12 @@ export const EMPTY_PROFILE = {
   workExperience: '',
   certifications: '',
   specialCircumstances: [],
+
+  // Which of lib/engine/profileCompletion.js's CORE_COMPLETION_FIELDS the
+  // student has explicitly opted out of (e.g. homeschooled with no class
+  // rank) — excluded from both the numerator and denominator of the
+  // completion %, not just left blank. See Profile.jsx's N/A checkboxes.
+  notApplicableFields: [],
 }
 
 const AppContext = createContext(null)
@@ -104,7 +115,7 @@ function readProfileOwner() {
 }
 
 export function AppProvider({ children }) {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const email = user?.email
 
   // Logged-in users are backed by the per-user backend profile (see
@@ -115,7 +126,11 @@ export function AppProvider({ children }) {
   const [studentProfile, setStudentProfile] = useState(() =>
     email ? EMPTY_PROFILE : readSavedProfile() ?? EMPTY_PROFILE
   )
-  const [profileLoading, setProfileLoading] = useState(Boolean(email))
+  // Start "loading" whenever the session itself is still being resolved too
+  // (AuthContext's own GET /api/auth/me check) — otherwise a returning,
+  // logged-in user would flash a guest/EMPTY_PROFILE state for a moment
+  // before AuthContext learns they have a session and this effect re-fires.
+  const [profileLoading, setProfileLoading] = useState(Boolean(email) || authLoading)
   const [profileError, setProfileError] = useState(null)
   const [lastSavedAt, setLastSavedAt] = useState(null)
   const [syncBaseline, setSyncBaseline] = useState(readSyncBaseline)
@@ -128,6 +143,11 @@ export function AppProvider({ children }) {
   useEffect(() => {
     let cancelled = false
 
+    if (authLoading) {
+      // Session check still in flight — wait rather than assuming guest.
+      return
+    }
+
     if (!email) {
       setStudentProfile(readSavedProfile() ?? EMPTY_PROFILE)
       setProfileLoading(false)
@@ -137,7 +157,7 @@ export function AppProvider({ children }) {
 
     setProfileLoading(true)
     setProfileError(null)
-    fetchProfile(email)
+    fetchProfile()
       .then(async (data) => {
         if (cancelled) return
         if (data) {
@@ -156,7 +176,7 @@ export function AppProvider({ children }) {
         const owner = readProfileOwner()
         if (local && (!owner || owner === email)) {
           try {
-            const migrated = await putProfile(email, local)
+            const migrated = await putProfile(local)
             if (cancelled) return
             localStorage.setItem(OWNER_KEY, email)
             setStudentProfile(migrated)
@@ -182,7 +202,7 @@ export function AppProvider({ children }) {
     return () => {
       cancelled = true
     }
-  }, [email])
+  }, [email, authLoading])
 
   // Backend-sourced college/program directory (spec 3.9) — replaced the
   // static `data/colleges.js` fixture as of the "remove hardcoded colleges"
@@ -217,10 +237,57 @@ export function AppProvider({ children }) {
     setCollegesFetchToken((t) => t + 1)
   }
 
+  // A student's own self-reported deadlines (Retention Phase 2) — only
+  // meaningful once logged in (backend/app/core/auth.py requires a real
+  // session), so skip the fetch entirely while `email` is unset rather than
+  // surfacing a 401 as a user-facing error. See lib/api/deadlineOverrides.js.
+  const [deadlineOverrides, setDeadlineOverrides] = useState([])
+
+  useEffect(() => {
+    if (!email) {
+      setDeadlineOverrides([])
+      return
+    }
+    let cancelled = false
+    fetchDeadlineOverrides()
+      .then((data) => {
+        if (!cancelled) setDeadlineOverrides(data)
+      })
+      .catch(() => {
+        // Best-effort — a failed fetch here just means estimated deadlines
+        // show instead of any self-reported ones. Not worth a page-level
+        // error state for a supplementary feature.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [email])
+
+  const overridesByProgramSlug = useMemo(
+    () => Object.fromEntries(deadlineOverrides.map((o) => [o.programSlug, o])),
+    [deadlineOverrides]
+  )
+
+  const collegesWithOverrides = useMemo(
+    () => colleges.map((c) => ({ ...c, deadlineOverride: overridesByProgramSlug[c.id] || null })),
+    [colleges, overridesByProgramSlug]
+  )
+
+  async function saveDeadlineOverride(programSlug, override) {
+    const saved = await putDeadlineOverride(programSlug, override)
+    setDeadlineOverrides((prev) => [...prev.filter((o) => o.programSlug !== programSlug), saved])
+    return saved
+  }
+
+  async function removeDeadlineOverride(programSlug) {
+    await removeDeadlineOverrideApi(programSlug)
+    setDeadlineOverrides((prev) => prev.filter((o) => o.programSlug !== programSlug))
+  }
+
   async function saveProfile(profile) {
     if (email) {
       try {
-        const saved = await putProfile(email, profile)
+        const saved = await putProfile(profile)
         localStorage.setItem(OWNER_KEY, email)
         setStudentProfile(saved)
         setLastSavedAt(new Date().toISOString())
@@ -248,7 +315,7 @@ export function AppProvider({ children }) {
   async function loadProfile() {
     if (email) {
       try {
-        const data = await fetchProfile(email)
+        const data = await fetchProfile()
         if (!data) return null
         setStudentProfile(data)
         return data
@@ -278,7 +345,7 @@ export function AppProvider({ children }) {
   async function clearProfile() {
     if (email) {
       try {
-        await putProfile(email, EMPTY_PROFILE)
+        await putProfile(EMPTY_PROFILE)
       } catch (err) {
         setProfileError(err.message || 'Failed to clear profile')
       }
@@ -327,8 +394,8 @@ export function AppProvider({ children }) {
   // plan rather than throwing — see Layout.jsx for the loading/error gate
   // that keeps pages from rendering a misleading "0 colleges" state instead.
   const derivedPlan = useMemo(
-    () => generatePlan(studentProfile, { colleges }),
-    [studentProfile, colleges]
+    () => generatePlan(studentProfile, { colleges: collegesWithOverrides }),
+    [studentProfile, collegesWithOverrides]
   )
 
   function updateEssays(essays) {
@@ -365,6 +432,8 @@ export function AppProvider({ children }) {
     collegesLoading,
     collegesError,
     retryFetchColleges,
+    saveDeadlineOverride,
+    removeDeadlineOverride,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

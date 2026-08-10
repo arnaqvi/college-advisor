@@ -25,6 +25,7 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    name: Mapped[str | None] = mapped_column(String(255), default=None)
     role: Mapped[str] = mapped_column(String(20), default="student")
     tier: Mapped[str] = mapped_column(String(20), default="free")
     # Nullable — only set for accounts created via the future Email + Password

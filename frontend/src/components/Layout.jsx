@@ -18,8 +18,11 @@ import {
   Loader2,
   Menu,
   X,
+  Lock,
+  Sparkles,
 } from 'lucide-react'
 import ExportButton from './ExportButton.jsx'
+import BrandMark from './BrandMark.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useAppContext } from '../context/AppContext.jsx'
 
@@ -57,10 +60,19 @@ export default function Layout() {
   const location = useLocation()
   const { collegesLoading, collegesError, retryFetchColleges, studentProfile, profileLoading } = useAppContext()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const isPaid = user?.tier === 'paid'
+  const profileIncomplete = !hasProfileStats(studentProfile)
 
-  function handleLogout() {
-    logout()
+  async function handleLogout() {
+    await logout()
     navigate('/login', { replace: true })
+  }
+
+  function handlePremiumClick(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    setMobileNavOpen(false)
+    navigate('/pricing')
   }
 
   const isReadOnlyRole = user?.role === 'parent' || user?.role === 'counselor'
@@ -92,11 +104,11 @@ export default function Layout() {
       >
         <div className="flex items-center justify-between px-5 py-6">
           <Link to="/" className="flex items-center gap-3" onClick={() => setMobileNavOpen(false)}>
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-[9px] bg-ink text-[11px] font-bold text-accent">
-              CP
-            </span>
+            <BrandMark size={28} />
             <div>
-              <h1 className="font-display text-lg font-extrabold tracking-tight text-text-primary">CollegePath</h1>
+              <h1 className="font-display text-lg font-extrabold tracking-tight text-text-primary">
+                College<span className="text-accent-contrast">Path</span>
+              </h1>
               <p className="text-xs text-text-secondary">Your Personalized Roadmap</p>
             </div>
           </Link>
@@ -110,70 +122,67 @@ export default function Layout() {
           </button>
         </div>
         <nav className="flex flex-col gap-1 px-3">
-          {NAV_ITEMS.map(({ to, label, icon: Icon, end, premium }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              onClick={() => setMobileNavOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-accent/20 text-accent-contrast'
-                    : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
-                }`
-              }
-            >
-              <Icon size={18} />
-              <span className="flex-1">{label}</span>
-              {premium && (
-                <span
-                  role="link"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    setMobileNavOpen(false)
-                    navigate('/pricing')
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'Enter' && e.key !== ' ') return
-                    e.preventDefault()
-                    e.stopPropagation()
-                    setMobileNavOpen(false)
-                    navigate('/pricing')
-                  }}
-                  className="shrink-0 rounded-full border border-target/30 bg-target-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-target hover:bg-target/20"
-                >
-                  Student
-                </span>
-              )}
-            </NavLink>
-          ))}
+          {NAV_ITEMS.map(({ to, label, icon: Icon, end, premium }) => {
+            const locked = premium && !isPaid
+            const isProfileTab = to === '/profile'
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                onClick={locked ? handlePremiumClick : () => setMobileNavOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-full px-3 py-2 text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-accent/20 text-accent-contrast'
+                      : isProfileTab && profileIncomplete
+                        ? 'bg-accent/10 text-text-primary ring-1 ring-accent/40 hover:bg-accent/15'
+                        : 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
+                  }`
+                }
+              >
+                <Icon size={18} />
+                <span className="flex-1">{label}</span>
+                {isProfileTab && profileIncomplete && (
+                  <span className="flex shrink-0 items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-contrast">
+                    <Sparkles size={10} />
+                    Complete
+                  </span>
+                )}
+                {locked && (
+                  <span
+                    role="link"
+                    tabIndex={0}
+                    onClick={handlePremiumClick}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter' && e.key !== ' ') return
+                      handlePremiumClick(e)
+                    }}
+                    className="flex shrink-0 items-center gap-1 rounded-full border border-target/30 bg-target-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-target hover:bg-target/20"
+                  >
+                    <Lock size={10} />
+                    Upgrade
+                  </span>
+                )}
+              </NavLink>
+            )
+          })}
         </nav>
         {user && (
           <div className="mt-auto border-t border-border px-5 py-4">
             <p className="truncate text-xs font-medium text-text-primary">{user.name || user.email}</p>
-            <p className="text-xs capitalize text-text-secondary">{user.role}</p>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="mt-2 flex items-center gap-1.5 text-xs font-medium text-ink hover:underline"
-            >
-              <LogOut size={13} />
-              Log out
-            </button>
+            <p className="text-xs capitalize text-text-secondary">
+              {user.role} · {isPaid ? 'Paid' : 'Free'}
+            </p>
           </div>
         )}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-50 flex items-center justify-between border-b border-border bg-surface px-4 py-3 md:hidden">
           <Link to="/" className="flex items-center gap-2">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-[9px] bg-ink text-[11px] font-bold text-accent">
-              CP
-            </span>
+            <BrandMark size={28} />
             <span className="font-display text-base font-extrabold tracking-tight text-text-primary">
-              CollegePath
+              College<span className="text-accent-contrast">Path</span>
             </span>
           </Link>
           <button
@@ -185,6 +194,21 @@ export default function Layout() {
             <Menu size={22} />
           </button>
         </header>
+        {user && (
+          <header className="sticky top-0 z-40 hidden items-center justify-end gap-4 border-b border-border bg-surface px-8 py-3 md:flex">
+            <span className="text-sm text-text-secondary">
+              Logged in as <span className="font-medium text-text-primary">{user.name || user.email}</span>
+            </span>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-text-primary hover:bg-surface-raised"
+            >
+              <LogOut size={13} />
+              Log out
+            </button>
+          </header>
+        )}
         <main className="min-w-0 flex-1 overflow-x-hidden p-4 sm:p-8">
           <ExportButton />
         {collegesLoading ? (

@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Chrome } from 'lucide-react'
 import AuthLayout from './AuthLayout.jsx'
 import AuthFormHeader from './AuthFormHeader.jsx'
 import PasswordField from './PasswordField.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
+import { fetchAuthConfig, googleLoginUrl } from '../lib/api/auth.js'
 import { trackEvent } from '../lib/trackEvent.js'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -28,38 +29,42 @@ export default function LoginForm({
   const { login } = useAuth()
   const navigate = useNavigate()
 
-  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [remember, setRemember] = useState(false)
   const [errors, setErrors] = useState({})
-  const [googleNotice, setGoogleNotice] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [googleEnabled, setGoogleEnabled] = useState(false)
+
+  useEffect(() => {
+    fetchAuthConfig().then((config) => setGoogleEnabled(config.google_enabled))
+  }, [])
 
   function validate() {
     const next = {}
-    if (!name.trim()) next.name = 'Name is required.'
     if (!email.trim()) next.email = 'Email address is required.'
     else if (!EMAIL_RE.test(email.trim())) next.email = 'Enter a valid email address.'
     if (!password) next.password = 'Password is required.'
     return next
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     const nextErrors = validate()
     setErrors(nextErrors)
+    setSubmitError('')
     if (Object.keys(nextErrors).length > 0) return
 
-    login({ email: email.trim(), role, name: name.trim(), remember })
-    trackEvent({ component: `${role}_login`, eventType: 'submit', metadata: { role } })
-    navigate(dashboardPath, { replace: true })
-  }
-
-  function handleGoogleStub() {
-    // UI-only stub — no real Google OAuth wired up yet. Swap this handler
-    // for a real redirect once app-level Google OAuth is implemented
-    // (see pattern-public-auth-apps in lab-apps agent memory).
-    setGoogleNotice(true)
+    setSubmitting(true)
+    try {
+      await login(email.trim(), password)
+      trackEvent({ component: `${role}_login`, eventType: 'submit', metadata: { role } })
+      navigate(dashboardPath, { replace: true })
+    } catch (err) {
+      setSubmitError(err.message || 'Invalid email or password.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -67,19 +72,6 @@ export default function LoginForm({
       <AuthFormHeader icon={icon} title={title} subtitle={subtitle} />
 
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
-        <label>
-          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">Your Name</span>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Enter your name"
-            autoComplete="name"
-            className="mt-2 w-full rounded-[12px] border border-border bg-surface px-4 py-3 text-sm text-text-primary placeholder-text-secondary/50 transition-colors duration-200 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30"
-          />
-          {errors.name && <span className="mt-2 block text-xs text-red-600 font-medium">{errors.name}</span>}
-        </label>
-
         <label>
           <span className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">Email Address</span>
           <input
@@ -102,16 +94,13 @@ export default function LoginForm({
           error={errors.password}
         />
 
-        <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2.5 text-sm text-text-secondary">
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              className="h-4 w-4 rounded border-border text-accent cursor-pointer"
-            />
-            <span className="font-medium">Remember me</span>
-          </label>
+        {submitError && (
+          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+            {submitError}
+          </p>
+        )}
+
+        <div className="flex items-center justify-end">
           <Link to={`/forgot-password?role=${role}`} className="text-sm font-semibold text-text-primary hover:text-accent transition-colors duration-200">
             Forgot password?
           </Link>
@@ -119,9 +108,10 @@ export default function LoginForm({
 
         <button
           type="submit"
-          className="w-full rounded-[12px] bg-accent px-4 py-3 text-sm font-semibold text-accent-contrast transition-all duration-200 hover:bg-accent/90 active:scale-[0.98]"
+          disabled={submitting}
+          className="w-full rounded-[12px] bg-accent px-4 py-3 text-sm font-semibold text-accent-contrast transition-all duration-200 hover:bg-accent/90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Log In as {roleLabel}
+          {submitting ? 'Logging in…' : `Log In as ${roleLabel}`}
         </button>
       </form>
 
@@ -131,15 +121,27 @@ export default function LoginForm({
         <div className="h-px flex-1 bg-border" />
       </div>
 
-      <button
-        type="button"
-        onClick={handleGoogleStub}
-        className="flex w-full items-center justify-center gap-2 rounded-[12px] border border-border bg-surface-raised px-4 py-3 text-sm font-semibold text-text-secondary transition-all duration-200 hover:bg-surface hover:border-text-secondary/30"
-      >
-        <Chrome size={18} />
-        Continue with Google
-      </button>
-      {googleNotice && <p className="mt-3 text-center text-xs text-text-secondary font-medium">Google sign-in is coming soon.</p>}
+      {googleEnabled ? (
+        <a
+          href={googleLoginUrl(role, 'free')}
+          className="flex w-full items-center justify-center gap-2 rounded-[12px] border border-border bg-surface-raised px-4 py-3 text-sm font-semibold text-text-secondary transition-all duration-200 hover:bg-surface hover:border-text-secondary/30"
+        >
+          <Chrome size={18} />
+          Continue with Google
+        </a>
+      ) : (
+        <div>
+          <button
+            type="button"
+            disabled
+            className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-[12px] border border-border bg-surface-raised px-4 py-3 text-sm font-semibold text-text-secondary/50"
+          >
+            <Chrome size={18} />
+            Continue with Google
+          </button>
+          <p className="mt-2 text-center text-xs text-text-secondary">Google sign-in is coming soon.</p>
+        </div>
+      )}
 
       {secondary && (
         <p className="mt-8 text-center text-sm text-text-secondary">

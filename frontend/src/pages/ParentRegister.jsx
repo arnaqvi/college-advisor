@@ -1,12 +1,14 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Users } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Check, Users } from 'lucide-react'
 import AuthLayout from '../components/AuthLayout.jsx'
 import AuthFormHeader from '../components/AuthFormHeader.jsx'
 import TextField from '../components/TextField.jsx'
 import PasswordField from '../components/PasswordField.jsx'
 import { trackEvent } from '../lib/trackEvent.js'
 import { useAuth } from '../context/AuthContext.jsx'
+import { fetchAuthConfig, googleLoginUrl } from '../lib/api/auth.js'
+import { PLANS } from '../data/plans.js'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -17,14 +19,28 @@ const EMPTY_FORM = {
   password: '',
   confirmPassword: '',
   studentLink: '',
+  plan: 'free',
 }
 
 export default function ParentRegister() {
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [searchParams] = useSearchParams()
+  // Same ?plan= pre-selection as StudentRegister.jsx — see that file for why.
+  const [form, setForm] = useState(() => {
+    const requestedPlan = searchParams.get('plan')
+    const plan = PLANS.some((p) => p.id === requestedPlan) ? requestedPlan : EMPTY_FORM.plan
+    return { ...EMPTY_FORM, plan }
+  })
   const [errors, setErrors] = useState({})
   const [submitted, setSubmitted] = useState(false)
-  const { login } = useAuth()
+  const [submitError, setSubmitError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [googleEnabled, setGoogleEnabled] = useState(false)
+  const { register } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    fetchAuthConfig().then((config) => setGoogleEnabled(config.google_enabled))
+  }, [])
 
   function handleChange(name, value) {
     setForm((prev) => ({ ...prev, [name]: value }))
@@ -44,21 +60,29 @@ export default function ParentRegister() {
     return next
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     const nextErrors = validate()
     setErrors(nextErrors)
+    setSubmitError('')
     if (Object.keys(nextErrors).length > 0) return
 
-    trackEvent({ component: 'parent_register', eventType: 'submit', metadata: {} })
-    // Establish a real session immediately — see StudentRegister.jsx for why.
-    login({
-      email: form.email.trim(),
-      role: 'parent',
-      name: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
-      remember: false,
-    })
-    setSubmitted(true)
+    setSubmitting(true)
+    try {
+      await register({
+        email: form.email.trim(),
+        password: form.password,
+        name: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
+        role: 'parent',
+        plan: form.plan,
+      })
+      trackEvent({ component: 'parent_register', eventType: 'submit', metadata: { plan: form.plan } })
+      setSubmitted(true)
+    } catch (err) {
+      setSubmitError(err.message || 'Could not create your account — please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -146,13 +170,65 @@ export default function ParentRegister() {
               error={errors.studentLink}
             />
 
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Choose your plan</span>
+              <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                {PLANS.map((plan) => {
+                  const selected = form.plan === plan.id
+                  return (
+                    <button
+                      key={plan.id}
+                      type="button"
+                      onClick={() => handleChange('plan', plan.id)}
+                      className={`rounded-lg border p-3 text-left transition-colors ${
+                        selected ? 'border-accent bg-accent/5 ring-1 ring-accent' : 'border-border hover:border-text-secondary/30'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-text-primary">{plan.title}</span>
+                        {selected && <Check size={16} className="text-accent" />}
+                      </div>
+                      <p className="mt-1 text-xs text-text-secondary">{plan.price}</p>
+                      <p className="mt-1 text-xs text-text-secondary">{plan.desc}</p>
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="mt-2 text-xs text-text-secondary/70">
+                No payment required yet — you can change plans anytime from Pricing.
+              </p>
+            </div>
+
+            {submitError && (
+              <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                {submitError}
+              </p>
+            )}
+
             <button
               type="submit"
-              className="w-full rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-accent-contrast hover:bg-accent/90"
+              disabled={submitting}
+              className="w-full rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-accent-contrast hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Create Account
+              {submitting ? 'Creating account…' : 'Create Account'}
             </button>
           </form>
+
+          {googleEnabled && (
+            <>
+              <div className="my-6 flex items-center gap-3">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs font-semibold uppercase tracking-wide text-text-secondary">or</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <a
+                href={googleLoginUrl('parent', form.plan)}
+                className="flex w-full items-center justify-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm font-semibold text-text-secondary hover:bg-surface-raised"
+              >
+                Continue with Google
+              </a>
+            </>
+          )}
 
           <p className="mt-6 text-center text-sm text-text-secondary">
             Already have an account?{' '}

@@ -6,15 +6,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.core.config import get_settings
 from app.core.database import engine
 from app.models import onboarding as _onboarding_models  # noqa: F401
 from app.models import user as _user_model  # noqa: F401
+from app.models import password_reset as _password_reset_model  # noqa: F401
 from app.models import billing as _billing_models  # noqa: F401
 from app.models import derived as _derived_models  # noqa: F401
 from app.models import college as _college_models  # noqa: F401
 from app.models import profile as _profile_models  # noqa: F401
+from app.models import tasks as _tasks_models  # noqa: F401
 from app.models.base import Base
 from app.routers.onboarding import ROUTERS as onboarding_routers
 from app.services import register_sync_handlers
@@ -36,10 +39,27 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await _ensure_user_name_column()
     # Register sync handlers after tables are created
     register_sync_handlers()
     await _seed_colleges_if_empty()
     yield
+
+
+async def _ensure_user_name_column() -> None:
+    """`users.name` was added after the `users` table already existed in
+    production — `create_all` only creates missing *tables*, never alters
+    columns on ones that already exist, so it won't add this on its own.
+    Same no-Alembic-yet situation as `_seed_colleges_if_empty` below; this is
+    the equivalent lightweight, idempotent step for a column instead of a
+    table. Works on both SQLite (local dev) and Postgres (production).
+    """
+    from sqlalchemy import inspect, text
+
+    async with engine.begin() as conn:
+        columns = await conn.run_sync(lambda sync_conn: [c["name"] for c in inspect(sync_conn).get_columns("users")])
+        if "name" not in columns:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN name VARCHAR(255)"))
 
 
 async def _seed_colleges_if_empty() -> None:
@@ -85,19 +105,38 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Only used by authlib to hold the Google OAuth state/nonce between the
+    # /google/login redirect and /google/callback — a short-lived, separate
+    # cookie from our own real session cookie (app/core/security.py's
+    # SESSION_COOKIE_NAME="session"); named distinctly here so the two never
+    # collide.
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.session_secret_key,
+        session_cookie="oauth_state",
+        max_age=600,
+    )
 
     for router, prefix, tag in onboarding_routers:
         app.include_router(router, prefix=f"/api/onboarding{prefix}", tags=[tag])
     # Billing/demo routes
+    from app.routers.auth import router as auth_router
     from app.routers.billing import router as billing_router
     from app.routers.sync import router as sync_router
     from app.routers.colleges import router as colleges_router
     from app.routers.profile import router as profile_router
+    from app.routers.advisor import router as advisor_router
+    from app.routers.bias_research import router as bias_research_router
+    from app.routers.tasks import router as tasks_router
 
+    app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
     app.include_router(billing_router, prefix="/api/billing", tags=["billing"])
     app.include_router(sync_router, tags=["sync"])
     app.include_router(colleges_router, tags=["colleges"])
     app.include_router(profile_router, prefix="/api/profile", tags=["profile"])
+    app.include_router(advisor_router, prefix="/api/advisor", tags=["advisor"])
+    app.include_router(bias_research_router, prefix="/api/bias-research", tags=["bias-research"])
+    app.include_router(tasks_router, prefix="/api/tasks", tags=["tasks"])
 
     @app.get("/")
     async def root() -> dict[str, str]:

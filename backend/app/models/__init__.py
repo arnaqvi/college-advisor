@@ -19,13 +19,16 @@ from .onboarding import (
     VolunteerExperience,
 )
 from .user import User
+from .password_reset import PasswordResetToken
 from .billing import Account, Subscription, StudentProfile
 from .derived import ProfileSyncState, ReadinessScoreSnapshot, RoadmapItem, SpecSyncEvent
-from .college import College, Program
+from .college import College, DeadlineOverride, Program
+from .tasks import CustomTask, TaskCompletion
 
 __all__ = [
     "Base",
     "User",
+    "PasswordResetToken",
     "OnboardingProgress",
     "AcademicRecord",
     "TestScore",
@@ -46,4 +49,7 @@ __all__ = [
     "ProfileSyncState",
     "College",
     "Program",
+    "DeadlineOverride",
+    "TaskCompletion",
+    "CustomTask",
 ]

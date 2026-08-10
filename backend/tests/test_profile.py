@@ -34,13 +34,25 @@ async def test_session():
         await engine.dispose()
 
 
+async def _registered_client(email: str) -> AsyncClient:
+    """A fresh AsyncClient (own cookie jar) registered and logged in as `email`."""
+    transport = ASGITransport(app=app)
+    client = AsyncClient(transport=transport, base_url="http://test")
+    response = await client.post(
+        "/api/auth/register",
+        json={"email": email, "password": "correct horse battery", "name": "Test User", "role": "student"},
+    )
+    assert response.status_code == 200, response.text
+    return client
+
+
 @pytest.mark.asyncio
 async def test_get_profile_returns_none_when_unsaved(test_session: AsyncSession) -> None:
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get(
-            "/api/profile", headers={"X-User-Email": "new-user@college-advisor.app"}
-        )
+    client = await _registered_client("new-user@college-advisor.app")
+    try:
+        response = await client.get("/api/profile")
+    finally:
+        await client.aclose()
 
     assert response.status_code == 200
     assert response.json() is None
@@ -48,19 +60,18 @@ async def test_get_profile_returns_none_when_unsaved(test_session: AsyncSession)
 
 @pytest.mark.asyncio
 async def test_put_then_get_round_trips(test_session: AsyncSession) -> None:
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    client = await _registered_client("student-a@college-advisor.app")
+    try:
         put_response = await client.put(
             "/api/profile",
-            headers={"X-User-Email": "student-a@college-advisor.app"},
             json={"data": {"studentName": "Student A", "gpaUnweighted": "3.9"}},
         )
         assert put_response.status_code == 200
         assert put_response.json()["data"]["studentName"] == "Student A"
 
-        get_response = await client.get(
-            "/api/profile", headers={"X-User-Email": "student-a@college-advisor.app"}
-        )
+        get_response = await client.get("/api/profile")
+    finally:
+        await client.aclose()
 
     assert get_response.status_code == 200
     assert get_response.json()["data"] == {"studentName": "Student A", "gpaUnweighted": "3.9"}
@@ -71,28 +82,25 @@ async def test_different_users_get_independent_profiles(test_session: AsyncSessi
     """The literal reproduction of the reported bug: two different logins on
     the same client must never see each other's saved profile.
     """
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        await client.put(
-            "/api/profile",
-            headers={"X-User-Email": "student-a@college-advisor.app"},
-            json={"data": {"studentName": "Student A"}},
-        )
-        await client.put(
-            "/api/profile",
-            headers={"X-User-Email": "student-b@college-advisor.app"},
-            json={"data": {"studentName": "Student B"}},
-        )
+    client_a = await _registered_client("student-a@college-advisor.app")
+    try:
+        await client_a.put("/api/profile", json={"data": {"studentName": "Student A"}})
+        response_a = await client_a.get("/api/profile")
+    finally:
+        await client_a.aclose()
 
-        response_a = await client.get(
-            "/api/profile", headers={"X-User-Email": "student-a@college-advisor.app"}
-        )
-        response_b = await client.get(
-            "/api/profile", headers={"X-User-Email": "student-b@college-advisor.app"}
-        )
-        response_new = await client.get(
-            "/api/profile", headers={"X-User-Email": "student-c@college-advisor.app"}
-        )
+    client_b = await _registered_client("student-b@college-advisor.app")
+    try:
+        await client_b.put("/api/profile", json={"data": {"studentName": "Student B"}})
+        response_b = await client_b.get("/api/profile")
+    finally:
+        await client_b.aclose()
+
+    client_c = await _registered_client("student-c@college-advisor.app")
+    try:
+        response_new = await client_c.get("/api/profile")
+    finally:
+        await client_c.aclose()
 
     assert response_a.json()["data"]["studentName"] == "Student A"
     assert response_b.json()["data"]["studentName"] == "Student B"

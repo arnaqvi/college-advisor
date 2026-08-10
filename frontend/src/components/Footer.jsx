@@ -1,3 +1,5 @@
+import BrandMark from './BrandMark.jsx'
+
 const columns = [
   {
     heading: 'Product',
@@ -23,10 +25,10 @@ export default function Footer() {
       <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[1.1fr_2fr] lg:items-start">
         <div className="space-y-5">
           <div className="flex items-center gap-3 text-ink">
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-aquamarine/10 text-lg font-bold text-ink">
-              CP
+            <BrandMark size={44} />
+            <span className="text-lg font-semibold">
+              College<span className="text-accent-contrast">Path</span>
             </span>
-            <span className="text-lg font-semibold">CollegePath</span>
           </div>
           <p className="max-w-sm text-sm leading-6 text-text-secondary">
             The modern platform for planning undergraduate admissions across the US and Canada.

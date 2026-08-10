@@ -123,12 +123,24 @@ export function classifyProgram(profile, program) {
 
 // A 0..1 "how good a match for THIS student" score used to RANK the College
 // List so it re-orders whenever the profile changes (Spec 4 personalization).
-// Deterministic and cheap. Three terms, all profile-dependent:
+// Deterministic and cheap. Five terms, all profile-dependent:
 //   - Tier is dominant: a balanced list surfaces Targets first, then Safeties,
 //     then Reaches, Incomplete last.
 //   - Closeness: within a tier, schools whose published test band sits closest
 //     to the student's own score rank higher (a tighter academic fit).
 //   - Preference: a boost when the school is in a state the student is targeting.
+//   - Major interest: a boost when the program's own dept matches one of the
+//     student's stated intended majors (added 2026-08-10 — profile.intendedMajors
+//     already existed and was collected but never used anywhere in scoring).
+//   - Rigor: a smaller boost, only for HIGHLY_COMPETITIVE_DEPTS programs, when
+//     the student has logged meaningful AP coursework — rigor matters most
+//     exactly where competitiveness already does, not as a blanket boost.
+//     profile.activities (extracurriculars) was considered too but left out of
+//     scoring on purpose: it's a structured array with no real UI anywhere in
+//     Profile.jsx to populate it (only an orphaned, unwired onboarding wizard
+//     ever wrote to it — see college_advisor_onboarding_backlog memory), so
+//     it's empty for effectively every real user today; scoring against a
+//     field nobody can actually fill in would be pointless.
 function computeFitScore(profile, program, tier, ctx) {
   const TIER_BASE = { Target: 0.7, Safety: 0.55, Reach: 0.4, Incomplete: 0 }
   let score = TIER_BASE[tier] ?? 0.4
@@ -152,6 +164,26 @@ function computeFitScore(profile, program, tier, ctx) {
   // Preference boost: student is targeting this school's state.
   const targetStates = Array.isArray(profile.targetStates) ? profile.targetStates : []
   if (program.state && targetStates.includes(program.state)) score += 0.15
+
+  // Major interest boost: this program's dept matches a stated intended major.
+  const intendedMajors = Array.isArray(profile.intendedMajors) ? profile.intendedMajors : []
+  if (
+    program.dept &&
+    intendedMajors.some((major) => major.trim().toLowerCase() === program.dept.trim().toLowerCase())
+  ) {
+    score += 0.15
+  }
+
+  // Rigor boost: >=3 logged AP courses (comma-separated free text, see
+  // Profile.jsx's "AP Calc BC, AP Bio, AP Lit" placeholder), only for programs
+  // in departments already flagged nationally competitive.
+  const apCourseCount =
+    typeof profile.apCourses === 'string'
+      ? profile.apCourses.split(',').map((c) => c.trim()).filter(Boolean).length
+      : 0
+  if (apCourseCount >= 3 && HIGHLY_COMPETITIVE_DEPTS.includes(program.dept)) {
+    score += 0.1
+  }
 
   return Math.min(1, score)
 }

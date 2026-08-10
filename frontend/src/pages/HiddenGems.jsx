@@ -1,11 +1,17 @@
-import { Gem, ExternalLink } from 'lucide-react'
+import { Gem, ExternalLink, Sparkles } from 'lucide-react'
 import { useAppContext } from '../context/AppContext.jsx'
 import { Reveal, useRevealOnMount } from '../components/Reveal.jsx'
 import { buildProgramSearchUrl } from '../lib/programLinks.js'
+import { pickWeeklyGem } from '../lib/engine/weeklyPick.js'
 
 export default function HiddenGems() {
   const { derivedPlan } = useAppContext()
   const gems = derivedPlan.hiddenGems
+  const weeklyGem = pickWeeklyGem(gems)
+  // Featured above, not duplicated in the grid below — the full list stays
+  // fully visible and uncapped either way (see college_advisor_retention_
+  // strategy memory), this just avoids showing the same card twice.
+  const restOfGems = weeklyGem ? gems.filter((g) => g.id !== weeklyGem.id) : gems
 
   useRevealOnMount([derivedPlan])
 
@@ -16,8 +22,23 @@ export default function HiddenGems() {
         Lesser-known schools with strong outcomes and higher odds of admission.
       </p>
 
+      {weeklyGem && (
+        <div className="mt-4 rounded-2xl border border-[var(--mint-tint)] bg-[var(--mint-tint)]/40 p-4">
+          <div className="inline-flex items-center gap-2 text-[var(--mint-deep)]">
+            <Sparkles size={14} />
+            <span className="text-xs font-semibold uppercase tracking-wide">This Week's Pick</span>
+          </div>
+          <h3 className="mt-2 font-semibold text-text-primary">{weeklyGem.name}</h3>
+          <p className="text-sm text-text-secondary">{weeklyGem.location}</p>
+          <p className="mt-2 text-sm text-text-secondary">
+            <span className="font-medium text-text-primary">Why overlooked: </span>
+            {weeklyGem.whyOverlooked}
+          </p>
+        </div>
+      )}
+
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {gems.map((g, i) => (
+        {restOfGems.map((g, i) => (
           <Reveal
             key={g.id}
             delay={`${i * 0.05}s`}
@@ -60,7 +81,7 @@ export default function HiddenGems() {
             </a>
           </Reveal>
         ))}
-        {gems.length === 0 && (
+        {restOfGems.length === 0 && (
           <p className="col-span-full py-6 text-center text-text-secondary">No hidden gems match your profile yet.</p>
         )}
       </div>

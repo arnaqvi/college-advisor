@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { RefreshCw, Upload, FileText, Trash2, Sparkles } from 'lucide-react'
 import { useAppContext, EMPTY_PROFILE } from '../context/AppContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { Reveal, useRevealOnMount } from '../components/Reveal.jsx'
 import MultiSelect from '../components/MultiSelect.jsx'
+import AdvisorChat from '../components/AdvisorChat.jsx'
 import {
   MAJOR_OPTIONS,
   US_STATE_OPTIONS,
@@ -12,6 +13,7 @@ import {
   INCOME_RANGE_OPTIONS,
   SPECIAL_CIRCUMSTANCE_OPTIONS,
 } from '../data/collegePreferenceOptions.js'
+import { CORE_COMPLETION_FIELD_NAMES, calculateProfileCompletion } from '../lib/engine/profileCompletion.js'
 
 // Kept well under browser localStorage quotas — documents are stored as
 // base64 data URLs (~33% larger than the raw file) alongside the rest of
@@ -268,12 +270,23 @@ export default function Profile() {
   } = useAppContext()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const role = user?.role
   const isReadOnly = READ_ONLY_ROLES.has(role)
   const [form, setForm] = useState(studentProfile)
   const [uploadError, setUploadError] = useState('')
   const [saveError, setSaveError] = useState('')
   const hasStats = Boolean(studentProfile.gpaUnweighted || studentProfile.satTotal || studentProfile.actComposite)
+  const completion = calculateProfileCompletion(form)
+  const advisorPrompt = location.state?.advisorPrompt
+  const advisorSectionRef = useRef(null)
+
+  // Dashboard's "Ask your AI Advisor" nudge navigates here with a prompt in
+  // router state — scroll straight to the chat so it doesn't get lost at the
+  // bottom of a long profile form.
+  useEffect(() => {
+    if (advisorPrompt) advisorSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [advisorPrompt])
 
   // studentProfile changes for reasons other than this form's own edits too —
   // an async backend fetch resolving after login, or switching to a different
@@ -285,6 +298,18 @@ export default function Profile() {
 
   function handleChange(name, value) {
     setForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  // "N/A" only exists for lib/engine/profileCompletion.js's core completion
+  // fields — marking one excludes it from both the numerator and denominator
+  // of the Dashboard completion meter, rather than counting it as missing.
+  function toggleNotApplicable(name) {
+    setForm((prev) => {
+      const current = new Set(prev.notApplicableFields || [])
+      if (current.has(name)) current.delete(name)
+      else current.add(name)
+      return { ...prev, notApplicableFields: [...current] }
+    })
   }
 
   async function handleSave() {
@@ -399,7 +424,9 @@ export default function Profile() {
       {!isReadOnly && !hasStats && !isSampleProfile && (
         <div className="mt-4 flex flex-col items-start gap-3 rounded-2xl border border-accent/30 bg-accent/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-text-primary">
-            New here? Fill in your GPA and test scores below, or explore the app first with a sample student.
+            Welcome! Your profile is {completion.percent}% complete — fill in your GPA and test scores below to
+            unlock your personalized dashboard, matches, and roadmap, or explore the app first with a sample
+            student.
           </p>
           <button
             onClick={handleTrySample}
@@ -447,17 +474,47 @@ export default function Profile() {
                     </p>
                   </div>
                 ) : f.multiSelect ? (
-                  <MultiSelect
-                    key={f.name}
-                    label={f.label}
-                    options={f.options}
-                    value={form[f.name]}
-                    onChange={(next) => handleChange(f.name, next)}
-                    placeholder={f.placeholder}
-                  />
+                  <div key={f.name} className={CORE_COMPLETION_FIELD_NAMES.has(f.name) && (form.notApplicableFields || []).includes(f.name) ? 'opacity-50' : ''}>
+                    <MultiSelect
+                      label={f.label}
+                      options={f.options}
+                      value={form[f.name]}
+                      onChange={(next) => handleChange(f.name, next)}
+                      placeholder={f.placeholder}
+                    />
+                    {CORE_COMPLETION_FIELD_NAMES.has(f.name) && (
+                      <label className="mt-1.5 flex items-center gap-1.5 text-xs text-text-secondary">
+                        <input
+                          type="checkbox"
+                          checked={(form.notApplicableFields || []).includes(f.name)}
+                          onChange={() => toggleNotApplicable(f.name)}
+                        />
+                        Not applicable to me
+                      </label>
+                    )}
+                  </div>
                 ) : (
-                  <label key={f.name} className={f.textarea ? 'sm:col-span-2' : ''}>
-                    <span className="text-xs font-medium text-text-secondary">{f.label}</span>
+                  <label
+                    key={f.name}
+                    className={`${f.textarea ? 'sm:col-span-2' : ''} ${
+                      CORE_COMPLETION_FIELD_NAMES.has(f.name) && (form.notApplicableFields || []).includes(f.name)
+                        ? 'opacity-50'
+                        : ''
+                    }`}
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-text-secondary">{f.label}</span>
+                      {CORE_COMPLETION_FIELD_NAMES.has(f.name) && (
+                        <span className="flex items-center gap-1.5 text-[11px] font-normal text-text-secondary">
+                          <input
+                            type="checkbox"
+                            checked={(form.notApplicableFields || []).includes(f.name)}
+                            onChange={() => toggleNotApplicable(f.name)}
+                          />
+                          N/A
+                        </span>
+                      )}
+                    </span>
                     {f.textarea ? (
                       <textarea
                         value={form[f.name] || ''}
@@ -548,6 +605,13 @@ export default function Profile() {
             </ul>
           </div>
         )}
+
+        <div ref={advisorSectionRef}>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">AI Advisor</h3>
+          <div className="mt-3">
+            <AdvisorChat initialPrompt={advisorPrompt} />
+          </div>
+        </div>
       </div>
     </Reveal>
   )

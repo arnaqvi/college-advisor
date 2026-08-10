@@ -14,16 +14,16 @@ this codebase — it is not real authorization, same caveat as everywhere else
 import json
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
-from app.models.college import College, Program
+from app.models.college import College, DeadlineOverride, Program
 from app.models.user import User
-from app.schemas.college import GemProfile, GpaBand, ProgramOut, ScoreBand
+from app.schemas.college import DeadlineOverrideIn, DeadlineOverrideOut, GemProfile, GpaBand, ProgramOut, ScoreBand
 
 router = APIRouter(prefix="/api/colleges", tags=["Colleges"])
 
@@ -164,3 +164,60 @@ async def import_colleges(
     return await import_colleges_from_scorecard(
         db, states=state_list, limit=limit, requested_by=current_user.email
     )
+
+
+@router.get("/deadline-overrides", response_model=list[DeadlineOverrideOut])
+async def list_deadline_overrides(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[DeadlineOverride]:
+    """A student's own saved deadlines for programs with no verified, shared
+    date yet — see app/models/college.py's `DeadlineOverride` docstring for
+    why this is per-user rather than a write to `College.deadlines`."""
+    result = await db.execute(select(DeadlineOverride).where(DeadlineOverride.user_id == current_user.id))
+    return list(result.scalars().all())
+
+
+@router.put("/deadline-overrides/{program_slug}", response_model=DeadlineOverrideOut)
+async def set_deadline_override(
+    program_slug: str,
+    payload: DeadlineOverrideIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> DeadlineOverride:
+    program_result = await db.execute(select(Program.id).where(Program.slug == program_slug))
+    if program_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Program not found")
+
+    result = await db.execute(
+        select(DeadlineOverride).where(
+            DeadlineOverride.user_id == current_user.id, DeadlineOverride.program_slug == program_slug
+        )
+    )
+    record = result.scalar_one_or_none()
+    if record is None:
+        record = DeadlineOverride(user_id=current_user.id, program_slug=program_slug)
+        db.add(record)
+    for field, value in payload.model_dump().items():
+        setattr(record, field, value)
+
+    await db.commit()
+    await db.refresh(record)
+    return record
+
+
+@router.delete("/deadline-overrides/{program_slug}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_deadline_override(
+    program_slug: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    result = await db.execute(
+        select(DeadlineOverride).where(
+            DeadlineOverride.user_id == current_user.id, DeadlineOverride.program_slug == program_slug
+        )
+    )
+    record = result.scalar_one_or_none()
+    if record is not None:
+        await db.delete(record)
+        await db.commit()

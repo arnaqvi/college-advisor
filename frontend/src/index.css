@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* In-page nav links (Navbar.jsx's #product/#pricing/#about anchors) were
+   plain instant browser jumps — nothing anywhere set smooth scrolling.
+   Gated behind prefers-reduced-motion like every other motion in this app
+   (see .landing-reveal etc. below). ScrollToTop.jsx's cross-PAGE reset
+   explicitly forces `behavior: 'instant'` so it isn't affected by this —
+   only same-page anchor jumps should animate. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 :root {
   --bg: #F6F7F3;
   --bg-card: #FFFFFF;
@@ -82,6 +94,40 @@ body {
     box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* `transition` is a shorthand — when an element carries BOTH classes (very
+   common: every <Reveal className="landing-hover ..."> card across the
+   app), whichever rule is later in this file wins its ENTIRE transition
+   list, not just adds to it. .landing-hover was later, so opacity silently
+   had no transition at all and just snapped instantly to 1 the moment
+   .visible was added, while only the (differently-timed, 0.3s not 0.9s)
+   transform still animated — this is why reveals looked like an instant
+   pop-in instead of a fade, confirmed via getComputedStyle().transitionProperty
+   on the live site (2026-08-10). Fixed with higher-specificity compound
+   selectors carrying the full merged property list, rather than relying on
+   source order between the two single-class rules above. */
+.landing-reveal.landing-hover {
+  transition:
+    opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: var(--reveal-delay, 0s), var(--reveal-delay, 0s), 0s, 0s, 0s;
+}
+
+/* Same fix, for cards that are ALSO staggered (landing-stagger's 0.7s
+   should apply to opacity/transform, same as it already correctly does
+   when landing-hover isn't in the mix). */
+.landing-reveal.landing-hover.landing-stagger {
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: var(--reveal-delay, 0s), var(--reveal-delay, 0s), 0s, 0s, 0s;
 }
 
 .landing-hover:hover {

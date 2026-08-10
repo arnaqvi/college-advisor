@@ -1,10 +1,18 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Briefcase } from 'lucide-react'
+import { Briefcase, Clock } from 'lucide-react'
 import AuthLayout from '../components/AuthLayout.jsx'
 import AuthFormHeader from '../components/AuthFormHeader.jsx'
 import TextField from '../components/TextField.jsx'
 import { trackEvent } from '../lib/trackEvent.js'
+
+// Temporarily paused (product decision, not a bug) — the request form below
+// only ever tracked an analytics event and showed a thank-you message; it
+// never actually persisted a request anywhere for a human to review, so
+// nobody who submitted it was getting a real account. Left the form/
+// validation logic in place rather than deleting it — remove this early
+// return to restore it once there's a real intake path behind it.
+const SETUP_PAUSED = true
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -49,6 +57,36 @@ export default function CounselorRequestAccess() {
 
     trackEvent({ component: 'counselor_request_access', eventType: 'submit', metadata: {} })
     setSubmitted(true)
+  }
+
+  if (SETUP_PAUSED) {
+    return (
+      <AuthLayout
+        icon={Briefcase}
+        panelTitle="Guide students at scale"
+        panelBody="Request counselor access to manage your caseload and provide personalized guidance."
+      >
+        <div className="space-y-6 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[var(--mint-tint)] text-[var(--mint-deep)]">
+            <Clock size={28} />
+          </div>
+          <AuthFormHeader
+            icon={Briefcase}
+            title="Coming Soon"
+            subtitle="Counselor accounts aren't open yet — we're still building this out."
+          />
+          <p className="text-sm text-text-secondary">
+            Check back soon, or reach out directly if you'd like to be notified when counselor access launches.
+          </p>
+          <Link
+            to="/login/counselor"
+            className="block w-full rounded-md bg-accent px-4 py-2.5 text-center text-sm font-semibold text-accent-contrast hover:bg-accent/90"
+          >
+            Already have access? Log in
+          </Link>
+        </div>
+      </AuthLayout>
+    )
   }
 
   return (

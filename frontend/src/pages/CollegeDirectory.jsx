@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Info } from 'lucide-react'
 import { useAppContext } from '../context/AppContext.jsx'
 import { Reveal, useRevealOnMount } from '../components/Reveal.jsx'
@@ -76,6 +76,11 @@ export default function CollegeDirectory() {
   const { derivedPlan, studentProfile } = useAppContext()
   const { classifiedPrograms, collegeList } = derivedPlan
   const incompleteCount = classifiedPrograms.filter((c) => c.tier === 'Incomplete').length
+  const [searchParams] = useSearchParams()
+  // Strategy.jsx's "View schools" links here as e.g. /colleges?tier=Reach —
+  // read it once on mount so a fresh navigation from that page arrives
+  // pre-filtered, same as the other dropdowns below.
+  const [tier, setTier] = useState(searchParams.get('tier') || 'All Tiers')
   const [category, setCategory] = useState('All Categories')
   const [department, setDepartment] = useState('All Departments')
   const [state, setState] = useState('All States')
@@ -99,6 +104,10 @@ export default function CollegeDirectory() {
     () => [...new Set(classifiedPrograms.map((c) => c.state).filter(Boolean))].sort(),
     [classifiedPrograms]
   )
+  const tiers = useMemo(
+    () => [...new Set(classifiedPrograms.map((c) => c.tier).filter(Boolean))].sort(),
+    [classifiedPrograms]
+  )
 
   useRevealOnMount([derivedPlan])
 
@@ -106,6 +115,7 @@ export default function CollegeDirectory() {
     () =>
       classifiedPrograms
         .filter((c) => {
+          if (tier !== 'All Tiers' && c.tier !== tier) return false
           if (category !== 'All Categories' && c.category !== category) return false
           if (department !== 'All Departments' && c.dept !== department) return false
           if (state !== 'All States' && c.state !== state) return false
@@ -118,7 +128,7 @@ export default function CollegeDirectory() {
         // rank (nulls last, e.g. imported directory rows) then name.
         .slice()
         .sort(byFit),
-    [classifiedPrograms, category, department, state]
+    [classifiedPrograms, tier, category, department, state]
   )
 
   const groups = useMemo(() => {
@@ -164,6 +174,7 @@ export default function CollegeDirectory() {
       )}
 
       <div className="mt-6 flex flex-wrap gap-3">
+        <Select label="All Tiers" value={tier} onChange={setTier} options={tiers} />
         <Select label="All Categories" value={category} onChange={setCategory} options={categories} />
         <Select label="All Departments" value={department} onChange={setDepartment} options={departments} />
         <Select label="All States" value={state} onChange={setState} options={states} />

@@ -71,6 +71,26 @@ export default function AboutUs() {
         </section>
 
         <section className="mx-auto mt-10 max-w-[1180px] px-5 md:px-8">
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-8 sm:p-10">
+            <h2 className="font-display text-3xl font-extrabold tracking-tight">Our Team</h2>
+            <p className="mt-4 leading-8 text-[var(--ink-soft)]">
+              CollegePath is built by a team of educators, technologists, and parents
+              who have lived through the admissions process themselves as students,
+              counselors, and parents supporting their own kids.
+            </p>
+            <p className="mt-6 text-sm font-semibold uppercase tracking-wide text-[var(--ink-faint)]">Founders</p>
+            <div className="mt-3 flex flex-wrap gap-4">
+              {['Abbas Naqvi', 'Ahsan Naqvi'].map((name) => (
+                <div key={name} className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-5 py-3">
+                  <p className="font-display text-lg font-bold tracking-tight">{name}</p>
+                  <p className="text-sm text-[var(--ink-faint)]">Co-Founder</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto mt-10 max-w-[1180px] px-5 md:px-8">
           <div className="grid gap-6 lg:grid-cols-2">
             <article className="rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-8">
               <h2 className="font-display text-3xl font-extrabold tracking-tight">Our Story</h2>
@@ -142,26 +162,6 @@ export default function AboutUs() {
                 <div key={item.title} className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5">
                   <h3 className="font-display text-2xl font-bold tracking-tight">{item.title}</h3>
                   <p className="mt-3 leading-7 text-[var(--ink-soft)]">{item.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto mt-10 max-w-[1180px] px-5 md:px-8">
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-8 sm:p-10">
-            <h2 className="font-display text-3xl font-extrabold tracking-tight">Our Team</h2>
-            <p className="mt-4 leading-8 text-[var(--ink-soft)]">
-              CollegePath is built by a team of educators, technologists, and parents
-              who have lived through the admissions process themselves as students,
-              counselors, and parents supporting their own kids.
-            </p>
-            <p className="mt-6 text-sm font-semibold uppercase tracking-wide text-[var(--ink-faint)]">Founders</p>
-            <div className="mt-3 flex flex-wrap gap-4">
-              {['Abbas Naqvi', 'Ahsan Naqvi'].map((name) => (
-                <div key={name} className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-5 py-3">
-                  <p className="font-display text-lg font-bold tracking-tight">{name}</p>
-                  <p className="text-sm text-[var(--ink-faint)]">Co-Founder</p>
                 </div>
               ))}
             </div>

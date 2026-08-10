@@ -46,9 +46,9 @@ convention already used elsewhere in this codebase (see
 SQLite-compatible stand-in for real Postgres `JSONB` later.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -161,3 +161,34 @@ class Program(Base):
     )
 
     college: Mapped["College"] = relationship("College", back_populates="programs")
+
+
+class DeadlineOverride(Base):
+    """A student's own belief about a program's application deadline.
+
+    Deliberately per-user, not a write to `College.deadlines` — that column
+    is reserved for hand-verified, sourced facts (see module docstring,
+    same trust level as `gpa_band`) shown to every user. Most of the 230-
+    college directory has no real deadline data (College Scorecard doesn't
+    publish deadlines at all — see app/services/scorecard_sync.py), so
+    letting any signed-in user fill one in is useful, but letting that
+    overwrite what every OTHER user sees would mean one wrong or malicious
+    entry corrupts a shared fact with no review step. Keyed by `Program.slug`
+    (not `college_id`) so it lines up with the id space the frontend already
+    uses everywhere (see lib/engine/taskSlugs.js's `deadlineTaskSlug`).
+    """
+
+    __tablename__ = "deadline_overrides"
+    __table_args__ = (UniqueConstraint("user_id", "program_slug", name="uq_deadline_override_user_program"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    program_slug: Mapped[str] = mapped_column(String(120), index=True)
+
+    ed_date: Mapped[date | None] = mapped_column(Date, default=None)
+    ea_date: Mapped[date | None] = mapped_column(Date, default=None)
+    rd_date: Mapped[date | None] = mapped_column(Date, default=None)
+    rolling: Mapped[bool] = mapped_column(Boolean, default=False)
+    note: Mapped[str | None] = mapped_column(String(500), default=None)
+
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

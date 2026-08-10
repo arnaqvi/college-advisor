@@ -1,13 +1,21 @@
+import { Link, useNavigate } from 'react-router-dom'
+import { Bot, Gem } from 'lucide-react'
 import { SCHOLARSHIPS } from '../data/scholarships.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useAppContext } from '../context/AppContext.jsx'
 import { Reveal, useRevealOnMount } from '../components/Reveal.jsx'
+import ProfileCompletionMeter from '../components/ProfileCompletionMeter.jsx'
+import { pickAdvisorPrompt } from '../lib/engine/advisorNudge.js'
+import { pickWeeklyGem } from '../lib/engine/weeklyPick.js'
 
 export default function Dashboard() {
   const { user } = useAuth()
   const { derivedPlan } = useAppContext()
-  const { snapshot, roadmap, classifiedPrograms } = derivedPlan
+  const navigate = useNavigate()
+  const { snapshot, roadmap, classifiedPrograms, hiddenGems } = derivedPlan
   const hasProfile = Boolean(snapshot.gpa || snapshot.testScores)
+  const advisorPrompt = pickAdvisorPrompt(snapshot, roadmap)
+  const weeklyGem = pickWeeklyGem(hiddenGems)
 
   useRevealOnMount([derivedPlan])
 
@@ -32,6 +40,10 @@ export default function Dashboard() {
       </h2>
       <p className="mt-1 text-sm text-text-secondary">Overview of the student's college admissions plan.</p>
 
+      <Reveal delay="0.02s" className="landing-stagger mt-6">
+        <ProfileCompletionMeter />
+      </Reveal>
+
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {stats.map((s, i) => (
           <Reveal
@@ -44,6 +56,38 @@ export default function Dashboard() {
           </Reveal>
         ))}
       </div>
+
+      <Reveal delay="0.1s" className="landing-stagger mt-8">
+        <button
+          type="button"
+          onClick={() => navigate('/profile', { state: { advisorPrompt } })}
+          className="landing-hover flex w-full items-center gap-3 rounded-2xl border border-border bg-surface-raised p-4 text-left"
+        >
+          <Bot size={20} className="shrink-0 text-accent-contrast" />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Ask your AI Advisor</p>
+            <p className="mt-1 text-sm font-medium text-text-primary">{advisorPrompt}</p>
+          </div>
+        </button>
+      </Reveal>
+
+      {weeklyGem && (
+        <Reveal delay="0.14s" className="landing-stagger mt-4">
+          <Link
+            to="/hidden-gems"
+            className="landing-hover flex items-center gap-3 rounded-2xl border border-[var(--mint-tint)] bg-[var(--mint-tint)]/40 p-4"
+          >
+            <Gem size={20} className="shrink-0 text-[var(--mint-deep)]" />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--mint-deep)]">
+                This Week's Hidden Gem
+              </p>
+              <p className="mt-1 text-sm font-medium text-text-primary">{weeklyGem.name}</p>
+              <p className="mt-0.5 text-xs text-text-secondary">{weeklyGem.whyFits}</p>
+            </div>
+          </Link>
+        </Reveal>
+      )}
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <div className="landing-hover rounded-2xl border border-border bg-surface-raised p-4">

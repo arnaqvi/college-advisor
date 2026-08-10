@@ -1,7 +1,9 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AppProvider } from './context/AppContext.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
+import ScrollToTop from './components/ScrollToTop.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
+import TierGate from './components/TierGate.jsx'
 import Layout from './components/Layout.jsx'
 import Homepage from './pages/Homepage.jsx'
 import RoleSelect from './pages/RoleSelect.jsx'
@@ -12,6 +14,7 @@ import StudentRegister from './pages/StudentRegister.jsx'
 import ParentRegister from './pages/ParentRegister.jsx'
 import CounselorRequestAccess from './pages/CounselorRequestAccess.jsx'
 import ForgotPassword from './pages/ForgotPassword.jsx'
+import ResetPassword from './pages/ResetPassword.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import CollegeDirectory from './pages/CollegeDirectory.jsx'
 import Programs from './pages/Programs.jsx'
@@ -25,7 +28,10 @@ import Compare from './pages/Compare.jsx'
 import CounselorBiasCheck from './pages/CounselorBiasCheck.jsx'
 import GapAnalysis from './pages/GapAnalysis.jsx'
 import Pricing from './pages/Pricing.jsx'
+import PricingSuccess from './pages/PricingSuccess.jsx'
+import PricingCancel from './pages/PricingCancel.jsx'
 import AboutUs from './pages/AboutUs.jsx'
+import ChildSafety from './pages/ChildSafety.jsx'
 import { OnboardingLayout } from './features/onboarding/OnboardingLayout'
 
 // import.meta.env.BASE_URL mirrors the `base` set in vite.config.js, so routes
@@ -34,11 +40,13 @@ import { OnboardingLayout } from './features/onboarding/OnboardingLayout'
 function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <ScrollToTop />
       <AuthProvider>
         <AppProvider>
           <Routes>
             <Route path="/" element={<Homepage />} />
             <Route path="/about" element={<AboutUs />} />
+            <Route path="/child-safety" element={<ChildSafety />} />
 
             {/* Role-based auth flow */}
             <Route path="/login" element={<RoleSelect />} />
@@ -49,24 +57,33 @@ function App() {
             <Route path="/register/parent" element={<ParentRegister />} />
             <Route path="/request-access" element={<CounselorRequestAccess />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             <Route path="/onboarding/*" element={<OnboardingLayout />} />
 
-            {/* Legacy shared app shell — unguarded, kept for existing links/nav */}
-            <Route element={<Layout />}>
-              <Route path="/dashboard" element={<Dashboard />} />
+            {/* Shared app shell — requires login (any role). Free tier reaches
+                Dashboard/Colleges/Profile/Pricing; everything else needs a
+                paid plan (TierGate), matching Layout.jsx's nav gating. */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<Layout />}>
+                <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/pricing" element={<Pricing />} />
-              <Route path="/colleges" element={<CollegeDirectory />} />
-              <Route path="/programs" element={<Programs />} />
-              <Route path="/hidden-gems" element={<HiddenGems />} />
-              <Route path="/scholarships" element={<Scholarships />} />
-              <Route path="/timeline" element={<Timeline />} />
-              <Route path="/strategy" element={<Strategy />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/essays" element={<EssayTracker />} />
-              <Route path="/compare" element={<Compare />} />
-              <Route path="/bias-check" element={<CounselorBiasCheck />} />
-              <Route path="/gap-analysis" element={<GapAnalysis />} />
+                <Route path="/pricing/success" element={<PricingSuccess />} />
+                <Route path="/pricing/cancel" element={<PricingCancel />} />
+                <Route path="/colleges" element={<CollegeDirectory />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route element={<TierGate />}>
+                  <Route path="/programs" element={<Programs />} />
+                  <Route path="/hidden-gems" element={<HiddenGems />} />
+                  <Route path="/scholarships" element={<Scholarships />} />
+                  <Route path="/timeline" element={<Timeline />} />
+                  <Route path="/strategy" element={<Strategy />} />
+                  <Route path="/essays" element={<EssayTracker />} />
+                  <Route path="/compare" element={<Compare />} />
+                  <Route path="/bias-check" element={<CounselorBiasCheck />} />
+                  <Route path="/gap-analysis" element={<GapAnalysis />} />
+                </Route>
+              </Route>
             </Route>
 
             {/* Role-guarded dashboards — only reachable by a logged-in account

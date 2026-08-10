@@ -32,7 +32,7 @@ export default function Strategy() {
               tier={t.tier}
               title={t.tier}
               className={`landing-hover border ${TIER_STYLES[t.tier]}`}
-              cta={{ label: 'View schools', to: '/colleges' }}
+              cta={{ label: 'View schools', to: `/colleges?tier=${encodeURIComponent(t.tier)}` }}
               icon={t.tier === 'Reach' ? Gem : t.tier === 'Target' ? Target : Award}
               badge={`${tierCounts[t.tier] || 0} on your list`}
             >

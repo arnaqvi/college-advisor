@@ -58,6 +58,12 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     {
         "slug": "stanford",
         "college": {
+            "deadlines": {
+                "ea": "2026-11-01",
+                "rd": "2027-01-05",
+                "note": "Restrictive Early Action, non-binding; no ED offered",
+                "source": "https://admission.stanford.edu/apply/deadlines/",
+            },
             "name": "Stanford University",
             "state": "CA",
             "city": "Stanford",
@@ -77,6 +83,11 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     {
         "slug": "unc-chapel-hill",
         "college": {
+            "deadlines": {
+                "ea": "2026-10-15",
+                "rd": "2027-01-15",
+                "source": "https://admissions.unc.edu/apply/types-of-applications/first-year/",
+            },
             "name": "UNC Chapel Hill",
             "state": "NC",
             "city": "Chapel Hill",
@@ -96,6 +107,11 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     {
         "slug": "olin-college",
         "college": {
+            "deadlines": {
+                "rd": "2026-12-15",
+                "note": "single unified deadline; no ED/EA offered",
+                "source": "https://www.olin.edu/admission/apply/admission-process",
+            },
             "name": "Olin College of Engineering",
             "state": "MA",
             "city": "Needham",
@@ -165,6 +181,13 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     {
         "slug": "depauw-university",
         "college": {
+            "deadlines": {
+                "ed": "2026-11-01",
+                "ea": "2026-11-01",
+                "rd": "2027-02-01",
+                "note": "ED II/EA II round also Dec 15",
+                "source": "https://www.depauw.edu/admission-aid/apply/",
+            },
             "name": "DePauw University",
             "state": "IN",  # see module docstring — corrected this session (was "IL")
             "city": "Greencastle",
@@ -190,6 +213,12 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     {
         "slug": "university-of-rochester",
         "college": {
+            "deadlines": {
+                "ed": "2026-11-01",
+                "rd": "2027-01-05",
+                "note": "ED II also Jan 5, same as RD",
+                "source": "https://admissions.rochester.edu/applying/dates-and-deadlines/",
+            },
             "name": "University of Rochester",
             "state": "NY",
             "city": "Rochester",
@@ -209,6 +238,12 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     {
         "slug": "georgia-tech",
         "college": {
+            "deadlines": {
+                "ea": "2026-11-02",
+                "rd": "2027-01-06",
+                "note": "EA is Oct 15 for GA residents, Nov 2 for others",
+                "source": "https://admission.gatech.edu/first-year/deadlines",
+            },
             "name": "Georgia Institute of Technology",
             "state": "GA",
             "city": "Atlanta",
@@ -228,6 +263,13 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     {
         "slug": "case-western",
         "college": {
+            "deadlines": {
+                "ed": "2026-11-01",
+                "ea": "2026-11-01",
+                "rd": "2027-01-15",
+                "note": "ED II also Jan 15",
+                "source": "https://case.edu/admission/apply/dates-deadlines",
+            },
             "name": "Case Western Reserve University",
             "state": "OH",
             "city": "Cleveland",
@@ -253,6 +295,11 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     {
         "slug": "ut-austin-computer-science",
         "college": {
+            "deadlines": {
+                "ea": "2026-10-15",
+                "rd": "2026-12-01",
+                "source": "https://admissions.utexas.edu/apply/freshman/",
+            },
             "name": "University of Texas at Austin",
             "state": "TX",
             "city": "Austin",
@@ -272,6 +319,11 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     {
         "slug": "ut-austin-mccombs-business",
         "college": {
+            "deadlines": {
+                "ea": "2026-10-15",
+                "rd": "2026-12-01",
+                "source": "https://admissions.utexas.edu/apply/freshman/",
+            },
             "name": "University of Texas at Austin",
             "state": "TX",
             "city": "Austin",
@@ -347,7 +399,18 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     # or all-Safety list.
     {
         "slug": "mit-computer-science",
-        "college": {"name": "Massachusetts Institute of Technology", "state": "MA", "city": "Cambridge", "type": "Private", "size": "Medium"},
+        "college": {
+            "deadlines": {
+                "ea": "2026-11-01",
+                "rd": "2027-01-04",
+                "source": "https://mitadmissions.org/apply/firstyear/deadlines-requirements/",
+            },
+            "name": "Massachusetts Institute of Technology",
+            "state": "MA",
+            "city": "Cambridge",
+            "type": "Private",
+            "size": "Medium",
+        },
         "dept": "Computer Science",
         "category": "STEM",
         "ranking": 2,
@@ -360,7 +423,19 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "harvard-economics",
-        "college": {"name": "Harvard University", "state": "MA", "city": "Cambridge", "type": "Private", "size": "Medium"},
+        "college": {
+            "deadlines": {
+                "ea": "2026-11-01",
+                "rd": "2027-01-01",
+                "note": "Restrictive Early Action, non-binding; no ED offered",
+                "source": "https://college.harvard.edu/admissions/apply/first-year-applicants",
+            },
+            "name": "Harvard University",
+            "state": "MA",
+            "city": "Cambridge",
+            "type": "Private",
+            "size": "Medium",
+        },
         "dept": "Economics",
         "category": "Liberal Arts",
         "ranking": 3,
@@ -373,7 +448,13 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "michigan-mechanical-engineering",
-        "college": {"name": "University of Michigan", "state": "MI", "city": "Ann Arbor", "type": "Public", "size": "Large"},
+        "college": {
+            "name": "University of Michigan",
+            "state": "MI",
+            "city": "Ann Arbor",
+            "type": "Public",
+            "size": "Large",
+        },
         "dept": "Engineering",
         "category": "STEM",
         "ranking": 21,
@@ -386,7 +467,18 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "ucla-psychology",
-        "college": {"name": "University of California, Los Angeles", "state": "CA", "city": "Los Angeles", "type": "Public", "size": "Large"},
+        "college": {
+            "deadlines": {
+                "rd": "2026-11-30",
+                "note": "UC filing period; no ED/EA offered",
+                "source": "https://admission.ucla.edu/apply/first-year",
+            },
+            "name": "University of California, Los Angeles",
+            "state": "CA",
+            "city": "Los Angeles",
+            "type": "Public",
+            "size": "Large",
+        },
         "dept": "Psychology",
         "category": "Liberal Arts",
         "ranking": 15,
@@ -399,7 +491,18 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "berkeley-eecs",
-        "college": {"name": "University of California, Berkeley", "state": "CA", "city": "Berkeley", "type": "Public", "size": "Large"},
+        "college": {
+            "deadlines": {
+                "rd": "2026-11-30",
+                "note": "UC filing period; no ED/EA offered",
+                "source": "https://admissions.berkeley.edu/apply-to-berkeley/dates-deadlines/",
+            },
+            "name": "University of California, Berkeley",
+            "state": "CA",
+            "city": "Berkeley",
+            "type": "Public",
+            "size": "Large",
+        },
         "dept": "Computer Science",
         "category": "STEM",
         "ranking": 20,
@@ -412,7 +515,18 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "uw-computer-science",
-        "college": {"name": "University of Washington", "state": "WA", "city": "Seattle", "type": "Public", "size": "Large"},
+        "college": {
+            "deadlines": {
+                "rd": "2026-11-15",
+                "note": "single Autumn deadline; no ED/EA offered",
+                "source": "https://admit.washington.edu/apply/first-year/",
+            },
+            "name": "University of Washington",
+            "state": "WA",
+            "city": "Seattle",
+            "type": "Public",
+            "size": "Large",
+        },
         "dept": "Computer Science",
         "category": "STEM",
         "ranking": 25,
@@ -425,7 +539,18 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "uiuc-computer-science",
-        "college": {"name": "University of Illinois Urbana-Champaign", "state": "IL", "city": "Champaign", "type": "Public", "size": "Large"},
+        "college": {
+            "deadlines": {
+                "ea": "2026-11-01",
+                "rd": "2027-01-05",
+                "source": "https://www.admissions.illinois.edu/apply/freshman/dates",
+            },
+            "name": "University of Illinois Urbana-Champaign",
+            "state": "IL",
+            "city": "Champaign",
+            "type": "Public",
+            "size": "Large",
+        },
         "dept": "Computer Science",
         "category": "STEM",
         "ranking": 35,
@@ -438,7 +563,18 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "purdue-engineering",
-        "college": {"name": "Purdue University", "state": "IN", "city": "West Lafayette", "type": "Public", "size": "Large"},
+        "college": {
+            "deadlines": {
+                "ea": "2026-11-01",
+                "rd": "2027-01-15",
+                "source": "https://www.admissions.purdue.edu/deadlines/first-year-college-student/",
+            },
+            "name": "Purdue University",
+            "state": "IN",
+            "city": "West Lafayette",
+            "type": "Public",
+            "size": "Large",
+        },
         "dept": "Engineering",
         "category": "STEM",
         "ranking": 53,
@@ -451,7 +587,18 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "ohio-state-fisher-business",
-        "college": {"name": "Ohio State University", "state": "OH", "city": "Columbus", "type": "Public", "size": "Large"},
+        "college": {
+            "deadlines": {
+                "ea": "2026-11-01",
+                "rd": "2027-01-15",
+                "source": "https://undergrad.osu.edu/apply/freshmen-columbus/apply-step-by-step",
+            },
+            "name": "Ohio State University",
+            "state": "OH",
+            "city": "Columbus",
+            "type": "Public",
+            "size": "Large",
+        },
         "dept": "Business",
         "category": "Business",
         "ranking": 49,
@@ -464,7 +611,18 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "indiana-kelley-business",
-        "college": {"name": "Indiana University Bloomington", "state": "IN", "city": "Bloomington", "type": "Public", "size": "Large"},
+        "college": {
+            "deadlines": {
+                "ea": "2026-11-01",
+                "rd": "2027-02-01",
+                "source": "https://bloomington.iu.edu/admissions/apply/freshman/deadlines.html",
+            },
+            "name": "Indiana University Bloomington",
+            "state": "IN",
+            "city": "Bloomington",
+            "type": "Public",
+            "size": "Large",
+        },
         "dept": "Business",
         "category": "Business",
         "ranking": 71,
@@ -483,7 +641,13 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "wisconsin-engineering",
-        "college": {"name": "University of Wisconsin-Madison", "state": "WI", "city": "Madison", "type": "Public", "size": "Large"},
+        "college": {
+            "name": "University of Wisconsin-Madison",
+            "state": "WI",
+            "city": "Madison",
+            "type": "Public",
+            "size": "Large",
+        },
         "dept": "Engineering",
         "category": "STEM",
         "ranking": 42,
@@ -496,7 +660,18 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "uva-mcintire-commerce",
-        "college": {"name": "University of Virginia", "state": "VA", "city": "Charlottesville", "type": "Public", "size": "Medium"},
+        "college": {
+            "deadlines": {
+                "ea": "2026-11-01",
+                "rd": "2027-01-05",
+                "source": "https://admission.virginia.edu/admission/deadlines-instructions",
+            },
+            "name": "University of Virginia",
+            "state": "VA",
+            "city": "Charlottesville",
+            "type": "Public",
+            "size": "Medium",
+        },
         "dept": "Business",
         "category": "Business",
         "ranking": 24,
@@ -509,7 +684,19 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "uf-computer-science",
-        "college": {"name": "University of Florida", "state": "FL", "city": "Gainesville", "type": "Public", "size": "Large"},
+        "college": {
+            "deadlines": {
+                "ed": "2026-10-15",
+                "ea": "2026-11-01",
+                "rd": "2027-01-15",
+                "source": "https://admissions.ufl.edu/apply/freshman/deadlines",
+            },
+            "name": "University of Florida",
+            "state": "FL",
+            "city": "Gainesville",
+            "type": "Public",
+            "size": "Large",
+        },
         "dept": "Computer Science",
         "category": "STEM",
         "ranking": 28,
@@ -522,7 +709,19 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "fsu-business",
-        "college": {"name": "Florida State University", "state": "FL", "city": "Tallahassee", "type": "Public", "size": "Large"},
+        "college": {
+            "deadlines": {
+                "ed": "2026-10-15",
+                "ea": "2026-10-15",
+                "rd": "2026-12-01",
+                "source": "https://admissions.fsu.edu/deadlines",
+            },
+            "name": "Florida State University",
+            "state": "FL",
+            "city": "Tallahassee",
+            "type": "Public",
+            "size": "Large",
+        },
         "dept": "Business",
         "category": "Business",
         "ranking": 55,
@@ -535,7 +734,13 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "asu-engineering",
-        "college": {"name": "Arizona State University", "state": "AZ", "city": "Tempe", "type": "Public", "size": "Large"},
+        "college": {
+            "name": "Arizona State University",
+            "state": "AZ",
+            "city": "Tempe",
+            "type": "Public",
+            "size": "Large",
+        },
         "dept": "Engineering",
         "category": "STEM",
         "ranking": 121,
@@ -554,7 +759,13 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "arizona-nursing",
-        "college": {"name": "University of Arizona", "state": "AZ", "city": "Tucson", "type": "Public", "size": "Large"},
+        "college": {
+            "name": "University of Arizona",
+            "state": "AZ",
+            "city": "Tucson",
+            "type": "Public",
+            "size": "Large",
+        },
         "dept": "Nursing",
         "category": "Health Sciences",
         "ranking": 103,
@@ -567,7 +778,20 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "colorado-college-environmental-studies",
-        "college": {"name": "Colorado College", "state": "CO", "city": "Colorado Springs", "type": "Private", "size": "Small"},
+        "college": {
+            "deadlines": {
+                "ed": "2026-11-01",
+                "ea": "2026-11-01",
+                "rd": "2027-01-15",
+                "note": "ED II also Jan 15",
+                "source": "https://www.coloradocollege.edu/admission/for-students/admission-requirements/first-year-students/first-year-students.html",
+            },
+            "name": "Colorado College",
+            "state": "CO",
+            "city": "Colorado Springs",
+            "type": "Private",
+            "size": "Small",
+        },
         "dept": "Environmental Science",
         "category": "STEM",
         "ranking": 27,
@@ -586,7 +810,20 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "reed-english",
-        "college": {"name": "Reed College", "state": "OR", "city": "Portland", "type": "Private", "size": "Small"},
+        "college": {
+            "deadlines": {
+                "ed": "2026-11-01",
+                "ea": "2026-11-01",
+                "rd": "2027-01-15",
+                "note": "ED II also Jan 15",
+                "source": "https://www.reed.edu/admission-aid/how-to-apply/first-year.html",
+            },
+            "name": "Reed College",
+            "state": "OR",
+            "city": "Portland",
+            "type": "Private",
+            "size": "Small",
+        },
         "dept": "English",
         "category": "Liberal Arts",
         "ranking": 72,
@@ -605,7 +842,19 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "kenyon-english",
-        "college": {"name": "Kenyon College", "state": "OH", "city": "Gambier", "type": "Private", "size": "Small"},
+        "college": {
+            "deadlines": {
+                "ed": "2026-11-15",
+                "rd": "2027-01-15",
+                "note": "ED II also Jan 15, same as RD",
+                "source": "https://www.kenyon.edu/admissions-aid/apply-to-kenyon/deadlines-requirements/",
+            },
+            "name": "Kenyon College",
+            "state": "OH",
+            "city": "Gambier",
+            "type": "Private",
+            "size": "Small",
+        },
         "dept": "English",
         "category": "Liberal Arts",
         "ranking": 62,
@@ -624,7 +873,19 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "trinity-tx-engineering-science",
-        "college": {"name": "Trinity University", "state": "TX", "city": "San Antonio", "type": "Private", "size": "Small"},
+        "college": {
+            "deadlines": {
+                "ed": "2026-11-01",
+                "ea": "2026-11-01",
+                "rd": "2027-02-01",
+                "source": "https://trinity.edu/admissions-aid/why-trinity/apply-now/application-types",
+            },
+            "name": "Trinity University",
+            "state": "TX",
+            "city": "San Antonio",
+            "type": "Private",
+            "size": "Small",
+        },
         "dept": "Engineering",
         "category": "STEM",
         "ranking": 63,
@@ -643,7 +904,19 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "rice-computer-science",
-        "college": {"name": "Rice University", "state": "TX", "city": "Houston", "type": "Private", "size": "Small"},
+        "college": {
+            "deadlines": {
+                "ed": "2026-11-01",
+                "rd": "2027-01-04",
+                "note": "ED II also Jan 4, same as RD; no EA offered",
+                "source": "https://admission.rice.edu/apply/first-year-domestic-applicants",
+            },
+            "name": "Rice University",
+            "state": "TX",
+            "city": "Houston",
+            "type": "Private",
+            "size": "Small",
+        },
         "dept": "Computer Science",
         "category": "STEM",
         "ranking": 17,
@@ -656,7 +929,19 @@ SEED_PROGRAMS: list[dict[str, Any]] = [
     },
     {
         "slug": "vanderbilt-engineering",
-        "college": {"name": "Vanderbilt University", "state": "TN", "city": "Nashville", "type": "Private", "size": "Medium"},
+        "college": {
+            "deadlines": {
+                "ed": "2026-11-01",
+                "rd": "2027-01-01",
+                "note": "ED II also Jan 1, same as RD; no EA offered",
+                "source": "https://admissions.vanderbilt.edu/apply/",
+            },
+            "name": "Vanderbilt University",
+            "state": "TN",
+            "city": "Nashville",
+            "type": "Private",
+            "size": "Medium",
+        },
         "dept": "Engineering",
         "category": "STEM",
         "ranking": 18,
@@ -681,13 +966,39 @@ async def seed_colleges() -> dict[str, int]:
     async with AsyncSessionLocal() as session:
         for row in SEED_PROGRAMS:
             college_defaults = {k: v for k, v in row["college"].items() if k != "name"}
-            result = await session.execute(select(College).where(College.name == row["college"]["name"]))
+            # `deadlines` is College-level JSON (Text column) but, unlike the
+            # Program-level JSON fields below, has no downstream json.dumps
+            # step of its own — encode it here if this row's college dict
+            # carries one. Written as a plain dict literal in SEED_PROGRAMS
+            # for readability, same as gpa_band/sat_band/etc.
+            if "deadlines" in college_defaults:
+                college_defaults["deadlines"] = json.dumps(college_defaults["deadlines"])
+            result = await session.execute(
+                select(College).where(College.name == row["college"]["name"])
+            )
             college = result.scalar_one_or_none()
             if college is None:
-                college = College(name=row["college"]["name"], country="US", data_source="seed", **college_defaults)
+                college = College(
+                    name=row["college"]["name"],
+                    country="US",
+                    data_source="seed",
+                    **college_defaults,
+                )
                 session.add(college)
                 await session.flush()
                 created_colleges += 1
+            else:
+                # Previously create-only — re-running this script against an
+                # already-seeded DB silently ignored any college-level field
+                # (e.g. a newly-added `deadlines`) despite the module
+                # docstring's "idempotent, safe to re-run" claim. Program
+                # fields already updated on rerun (see below); this makes
+                # College fields do the same. `college_defaults` only ever
+                # carries the exact keys present in this row's `college`
+                # dict, so a row that doesn't set e.g. `deadlines` never
+                # touches it here.
+                for field, value in college_defaults.items():
+                    setattr(college, field, value)
 
             result = await session.execute(select(Program).where(Program.slug == row["slug"]))
             program = result.scalar_one_or_none()

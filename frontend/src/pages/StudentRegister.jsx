@@ -1,12 +1,14 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { GraduationCap } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Check, GraduationCap } from 'lucide-react'
 import AuthLayout from '../components/AuthLayout.jsx'
 import AuthFormHeader from '../components/AuthFormHeader.jsx'
 import TextField from '../components/TextField.jsx'
 import PasswordField from '../components/PasswordField.jsx'
 import { trackEvent } from '../lib/trackEvent.js'
 import { useAuth } from '../context/AuthContext.jsx'
+import { fetchAuthConfig, googleLoginUrl } from '../lib/api/auth.js'
+import { PLANS } from '../data/plans.js'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const CURRENT_YEAR = new Date().getFullYear()
@@ -19,14 +21,31 @@ const EMPTY_FORM = {
   confirmPassword: '',
   gradYear: '',
   schoolName: '',
+  plan: 'free',
 }
 
 export default function StudentRegister() {
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [searchParams] = useSearchParams()
+  // Homepage's pricing section links here as e.g. /register/student?plan=individual
+  // (see pricingPlans in pages/Homepage.jsx) — honor it if it's a real plan id,
+  // otherwise fall back to the normal free default rather than trusting an
+  // arbitrary query value.
+  const [form, setForm] = useState(() => {
+    const requestedPlan = searchParams.get('plan')
+    const plan = PLANS.some((p) => p.id === requestedPlan) ? requestedPlan : EMPTY_FORM.plan
+    return { ...EMPTY_FORM, plan }
+  })
   const [errors, setErrors] = useState({})
   const [submitted, setSubmitted] = useState(false)
-  const { login } = useAuth()
+  const [submitError, setSubmitError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [googleEnabled, setGoogleEnabled] = useState(false)
+  const { register } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    fetchAuthConfig().then((config) => setGoogleEnabled(config.google_enabled))
+  }, [])
 
   function handleChange(name, value) {
     setForm((prev) => ({ ...prev, [name]: value }))
@@ -47,25 +66,29 @@ export default function StudentRegister() {
     return next
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     const nextErrors = validate()
     setErrors(nextErrors)
+    setSubmitError('')
     if (Object.keys(nextErrors).length > 0) return
 
-    trackEvent({ component: 'student_register', eventType: 'submit', metadata: { gradYear: form.gradYear } })
-    // Establish a real session immediately — mirrors LoginForm.jsx's login()
-    // call. Without this, "creating an account" left the visitor in the same
-    // unauthenticated/guest state they started in, which made it look like a
-    // brand-new signup was inheriting a previous user's saved profile: it
-    // wasn't a different account at all, since no session had ever changed.
-    login({
-      email: form.email.trim(),
-      role: 'student',
-      name: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
-      remember: false,
-    })
-    setSubmitted(true)
+    setSubmitting(true)
+    try {
+      await register({
+        email: form.email.trim(),
+        password: form.password,
+        name: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
+        role: 'student',
+        plan: form.plan,
+      })
+      trackEvent({ component: 'student_register', eventType: 'submit', metadata: { gradYear: form.gradYear, plan: form.plan } })
+      setSubmitted(true)
+    } catch (err) {
+      setSubmitError(err.message || 'Could not create your account — please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -163,13 +186,65 @@ export default function StudentRegister() {
               />
             </div>
 
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Choose your plan</span>
+              <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                {PLANS.map((plan) => {
+                  const selected = form.plan === plan.id
+                  return (
+                    <button
+                      key={plan.id}
+                      type="button"
+                      onClick={() => handleChange('plan', plan.id)}
+                      className={`rounded-lg border p-3 text-left transition-colors ${
+                        selected ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500' : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-slate-900">{plan.title}</span>
+                        {selected && <Check size={16} className="text-indigo-600" />}
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">{plan.price}</p>
+                      <p className="mt-1 text-xs text-slate-500">{plan.desc}</p>
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                No payment required yet — you can change plans anytime from Pricing.
+              </p>
+            </div>
+
+            {submitError && (
+              <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                {submitError}
+              </p>
+            )}
+
             <button
               type="submit"
-              className="w-full rounded-md bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-400"
+              disabled={submitting}
+              className="w-full rounded-md bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Create Account
+              {submitting ? 'Creating account…' : 'Create Account'}
             </button>
           </form>
+
+          {googleEnabled && (
+            <>
+              <div className="my-6 flex items-center gap-3">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">or</span>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+              <a
+                href={googleLoginUrl('student', form.plan)}
+                className="flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Continue with Google
+              </a>
+            </>
+          )}
 
           <p className="mt-6 text-center text-sm text-slate-500">
             Already have an account?{' '}

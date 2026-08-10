@@ -1,48 +1,62 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
+import { fetchMe, login as apiLogin, logout as apiLogout, register as apiRegister } from '../lib/api/auth.js'
 
-const STORAGE_KEY = 'collegeAdvisorAuth'
-
-// NOTE: There is no backend auth API yet (see ../../CLAUDE.md — backend has no
-// user schema or /api/auth routes). This is a client-only session used to gate
-// routes by role in the UI. It does not verify credentials against a real user
-// store. Wire this up to `backend/` once an auth API exists.
+// Real, server-validated session — replaces the old client-only version that
+// just wrote {email, role, name} to localStorage/sessionStorage with no
+// backend check at all (see backend/app/routers/auth.py, backend/docs/
+// user-stories.md story 1). Identity lives in a signed httpOnly cookie the
+// browser sends automatically; this context's job is just to ask the backend
+// "who am I" on load and expose login/register/logout.
 const AuthContext = createContext(null)
 
-function readStoredUser() {
-  try {
-    const local = localStorage.getItem(STORAGE_KEY)
-    if (local) return JSON.parse(local)
-    const session = sessionStorage.getItem(STORAGE_KEY)
-    return session ? JSON.parse(session) : null
-  } catch {
-    return null
-  }
-}
-
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(readStoredUser)
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  function login({ email, role, name, remember = false }) {
-    const nextUser = { email, role, name }
-    const payload = JSON.stringify(nextUser)
-    if (remember) {
-      localStorage.setItem(STORAGE_KEY, payload)
-      sessionStorage.removeItem(STORAGE_KEY)
-    } else {
-      sessionStorage.setItem(STORAGE_KEY, payload)
-      localStorage.removeItem(STORAGE_KEY)
+  useEffect(() => {
+    let cancelled = false
+    fetchMe()
+      .then((me) => {
+        if (!cancelled) setUser(me)
+      })
+      .catch(() => {
+        if (!cancelled) setUser(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
     }
-    setUser(nextUser)
-    return nextUser
+  }, [])
+
+  async function login(email, password) {
+    const me = await apiLogin(email, password)
+    setUser(me)
+    return me
   }
 
-  function logout() {
-    localStorage.removeItem(STORAGE_KEY)
-    sessionStorage.removeItem(STORAGE_KEY)
+  async function register(payload) {
+    const me = await apiRegister(payload)
+    setUser(me)
+    return me
+  }
+
+  async function logout() {
+    await apiLogout()
     setUser(null)
   }
 
-  const value = { user, login, logout, isAuthenticated: Boolean(user) }
+  // Re-checks the session with the backend — used after an action that
+  // changes something /me returns (e.g. subscribing/canceling a plan changes
+  // `tier`) without forcing a full page reload.
+  async function refresh() {
+    const me = await fetchMe()
+    setUser(me)
+    return me
+  }
+
+  const value = { user, loading, login, register, logout, refresh, isAuthenticated: Boolean(user) }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

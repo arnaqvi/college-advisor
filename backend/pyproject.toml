@@ -19,6 +19,12 @@ dependencies = [
     # Runtime dep as of the College Scorecard sync job
     # (app/services/scorecard_sync.py) — previously only a test-client dep.
     "httpx (>=0.27.2,<0.29.0)",
+    "passlib[argon2] (>=1.7.4,<2.0.0)",
+    "itsdangerous (>=2.2.0,<3.0.0)",
+    "authlib (>=1.7.2,<2.0.0)",
+    "argon2-cffi (>=25.1.0,<26.0.0)",
+    "stripe (>=15.4.0,<16.0.0)",
+    "anthropic (>=0.121.0,<0.122.0)",
 ]
 
 [tool.poetry]

@@ -3,6 +3,7 @@ import { ArrowRight, Bot, CalendarDays, CheckCircle2, Columns, Globe2, Graduatio
 import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar.jsx'
 import Hero from '../components/Hero.jsx'
+import BrandMark from '../components/BrandMark.jsx'
 import { Reveal, useRevealOnMount } from '../components/Reveal.jsx'
 
 const productCards = [
@@ -39,18 +40,21 @@ const strategyTiers = [
     label: 'Reach',
     color: 'var(--reach)',
     background: 'var(--reach-bg)',
+    heading: 'Ambitious swings you can actually back up.',
     detail: 'Stretch schools that can still make sense with a strong story, standout rigor, and disciplined essay execution.',
   },
   {
     label: 'Target',
     color: 'var(--target)',
     background: 'var(--target-bg)',
+    heading: 'Where your odds and your goals finally align.',
     detail: 'Schools where your academics and interests line up well and the application strategy can compound your odds.',
   },
   {
     label: 'Safety',
     color: 'var(--safety)',
     background: 'var(--safety-bg)',
+    heading: 'A steady floor for when the cycle gets stressful.',
     detail: 'Reliable options with solid program fit, financial clarity, and momentum when the cycle gets stressful.',
   },
 ]
@@ -62,22 +66,32 @@ const metrics = [
   { value: '87%', label: 'students staying on pace after week four' },
 ]
 
+// `id` must match backend/frontend/src/data/plans.js's Plan ids exactly —
+// that's what Stripe Checkout and registration actually key off. Price/
+// student-count copy below is kept in sync with plans.js BY HAND (marketing
+// wants its own feature bullets, not the terser copy plans.js uses on the
+// real Pricing page) — previously drifted out of sync (this said "$19/mo,
+// up to 3 students" while the real Family plan has always been $25/mo for
+// up to 4), so if either changes, update both files.
 const pricingPlans = [
   {
+    id: 'free',
     name: 'Explorer',
     price: 'Free',
     features: ['5 universities tracked', '3 AI questions / month', '2 essays'],
   },
   {
+    id: 'individual',
     name: 'Pro Student',
     price: '$9/mo',
     features: ['Unlimited schools and essays', 'Unlimited AI advisor access', 'Full compare tool'],
     featured: true,
   },
   {
+    id: 'family',
     name: 'Family Plus',
-    price: '$19/mo',
-    features: ['Up to 3 students', 'Shared parent dashboard', 'Everything in Pro'],
+    price: '$25/mo',
+    features: ['Up to 4 students', 'Shared parent dashboard', 'Everything in Pro'],
   },
 ]
 
@@ -206,15 +220,17 @@ export default function Homepage() {
 
         <section className="py-[88px]">
           <div className="mx-auto px-5 md:px-8">
-            <Reveal className="rounded-[28px] bg-[var(--dark)] px-6 py-8 text-white sm:px-10 sm:py-10 lg:px-12 lg:py-12">
+            <div className="rounded-[28px] bg-[var(--dark)] px-6 py-8 text-white sm:px-10 sm:py-10 lg:px-12 lg:py-12">
               <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
                 <div>
-                  <p className="font-display text-sm font-extrabold uppercase tracking-[0.24em] text-[var(--mint)]">
-                    Advisor-mode planning
-                  </p>
-                  <h2 className="font-display mt-4 text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
-                    Built for the real handoff between student effort, family oversight, and counselor guidance.
-                  </h2>
+                  <Reveal as="div">
+                    <p className="font-display text-sm font-extrabold uppercase tracking-[0.24em] text-[var(--mint)]">
+                      Advisor-mode planning
+                    </p>
+                    <h2 className="font-display mt-4 text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
+                      Built for the real handoff between student effort, family oversight, and counselor guidance.
+                    </h2>
+                  </Reveal>
                   <div className="mt-8 space-y-4 text-[15px] leading-7 text-white/72">
                     {supportBullets.map((item, index) => (
                       <Reveal
@@ -270,7 +286,7 @@ export default function Homepage() {
                   </div>
                 </Reveal>
               </div>
-            </Reveal>
+            </div>
           </div>
         </section>
 
@@ -302,7 +318,7 @@ export default function Homepage() {
                     {tier.label}
                   </div>
                   <h3 className="font-display mt-6 text-[28px] font-extrabold tracking-tight text-[var(--ink)]">
-                    {tier.label} schools with a plan behind them.
+                    {tier.heading}
                   </h3>
                   <p className="mt-4 text-[15px] leading-7 text-[var(--ink-soft)]">{tier.detail}</p>
                 </Reveal>
@@ -326,14 +342,13 @@ export default function Homepage() {
                   'Essay status across every application',
                   'Aid and scholarship tracking',
                   'One source of truth for everyone involved',
-                ].map((item, index) => (
-                  <Reveal
+                ].map((item) => (
+                  <div
                     key={item}
-                    delay={`${0.08 * (index + 1)}s`}
-                    className="landing-stagger rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-4 py-4 text-sm leading-6 text-[var(--ink-soft)]"
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-4 py-4 text-sm leading-6 text-[var(--ink-soft)]"
                   >
                     {item}
-                  </Reveal>
+                  </div>
                 ))}
               </div>
             </Reveal>
@@ -357,18 +372,17 @@ export default function Homepage() {
                   ['Program fit', 'Engineering vs business outcomes'],
                   ['Net cost', 'Scholarships, aid, and total annual spend'],
                   ['Campus feel', 'Urban access, size, and student energy'],
-                ].map(([label, value], index) => (
-                  <Reveal
+                ].map(([label, value]) => (
+                  <div
                     key={label}
-                    delay={`${0.1 * (index + 1)}s`}
-                    className="landing-stagger flex items-center justify-between rounded-2xl bg-[var(--bg)] px-4 py-4"
+                    className="flex items-center justify-between rounded-2xl bg-[var(--bg)] px-4 py-4"
                   >
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--ink-faint)]">{label}</p>
                       <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{value}</p>
                     </div>
                     <ArrowRight size={18} className="text-[var(--mint-deep)]" />
-                  </Reveal>
+                  </div>
                 ))}
               </div>
             </Reveal>
@@ -379,15 +393,14 @@ export default function Homepage() {
           <div className="mx-auto px-5 md:px-8">
             <Reveal className="rounded-[28px] bg-[var(--dark)] px-6 py-10 text-white sm:px-10 lg:px-12">
               <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4">
-                {metrics.map((metric, index) => (
-                  <Reveal
+                {metrics.map((metric) => (
+                  <div
                     key={metric.label}
-                    delay={`${0.08 * (index + 1)}s`}
-                    className="landing-stagger border-t border-white/10 pt-6 first:border-t-0 first:pt-0 md:first:border-t md:first:pt-6 xl:border-t-0 xl:pt-0 xl:first:border-t-0 xl:first:pt-0"
+                    className="border-t border-white/10 pt-6 first:border-t-0 first:pt-0 md:first:border-t md:first:pt-6 xl:border-t-0 xl:pt-0 xl:first:border-t-0 xl:first:pt-0"
                   >
                     <p className="font-display text-5xl font-extrabold tracking-tight text-white">{metric.value}</p>
                     <p className="mt-3 text-sm uppercase tracking-[0.24em] text-white/62">{metric.label}</p>
-                  </Reveal>
+                  </div>
                 ))}
               </div>
             </Reveal>
@@ -440,23 +453,36 @@ export default function Homepage() {
                       </div>
                     ))}
                   </div>
+                  <Link
+                    to={`/register/student?plan=${plan.id}`}
+                    className={`mt-8 block w-full rounded-full px-4 py-3 text-center text-sm font-semibold transition-all duration-200 active:scale-95 ${
+                      plan.featured
+                        ? 'bg-[var(--mint-deep)] text-white hover:bg-[var(--mint-deep)]/90'
+                        : 'border border-[var(--border)] bg-white text-[var(--ink)] hover:border-[var(--mint-deep)]'
+                    }`}
+                  >
+                    {plan.id === 'free' ? 'Get Started Free' : `Choose ${plan.name}`}
+                  </Link>
                 </Reveal>
               ))}
             </div>
+            <p className="mt-6 text-center text-sm text-[var(--ink-faint)]">
+              No payment required to sign up — pick a plan now or change it anytime from Pricing.
+            </p>
           </div>
         </section>
 
         <section id="about" className="py-[88px]">
           <div className="mx-auto px-5 md:px-8">
-            <Reveal className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
-              <div>
+            <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+              <Reveal as="div">
                 <p className="font-display text-sm font-extrabold uppercase tracking-[0.24em] text-[var(--ink-faint)]">
                   About CollegePath
                 </p>
                 <h2 className="font-display mt-4 text-4xl font-extrabold tracking-tight text-[var(--ink)] sm:text-5xl">
                   A planning platform built to make admissions feel structured instead of chaotic.
                 </h2>
-              </div>
+              </Reveal>
               <div className="grid gap-6 md:grid-cols-3">
                 {aboutPoints.map((point, index) => {
                   const Icon = point.icon
@@ -478,7 +504,7 @@ export default function Homepage() {
                   )
                 })}
               </div>
-            </Reveal>
+            </div>
           </div>
         </section>
 
@@ -507,19 +533,31 @@ export default function Homepage() {
       </main>
 
       <footer className="border-t border-[var(--border)] py-10">
-        <div className="mx-auto flex flex-col gap-4 px-5 text-sm text-[var(--ink-faint)] md:flex-row md:items-center md:justify-between md:px-8">
+        <Reveal
+          as="div"
+          className="mx-auto flex flex-col gap-4 px-5 text-sm text-[var(--ink-faint)] md:flex-row md:items-center md:justify-between md:px-8"
+        >
           <div className="flex items-center gap-3 text-[var(--ink)]">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-[9px] bg-[var(--dark)] text-[11px] font-bold text-[var(--mint)]">
-              CP
+            <BrandMark size={28} />
+            <span className="font-display text-base font-extrabold">
+              College<span className="text-accent-contrast">Path</span>
             </span>
-            <span className="font-display text-base font-extrabold">CollegePath</span>
           </div>
           <div className="flex flex-wrap items-center gap-5">
-            <a href="#product">Product</a>
-            <a href="#pricing">Pricing</a>
-            <Link to="/about">About</Link>
+            <a href="#product" className="transition-colors duration-300 hover:text-[var(--ink)]">
+              Product
+            </a>
+            <a href="#pricing" className="transition-colors duration-300 hover:text-[var(--ink)]">
+              Pricing
+            </a>
+            <Link to="/about" className="transition-colors duration-300 hover:text-[var(--ink)]">
+              About
+            </Link>
+            <Link to="/child-safety" className="transition-colors duration-300 hover:text-[var(--ink)]">
+              Child Safety &amp; AI Use
+            </Link>
           </div>
-        </div>
+        </Reveal>
       </footer>
     </div>
   )
