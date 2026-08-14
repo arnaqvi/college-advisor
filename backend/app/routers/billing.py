@@ -392,6 +392,33 @@ async def cancel_subscription(
     if subscription is None:
         raise HTTPException(status_code=404, detail="no active subscription")
 
+    # This app has no inbound Stripe webhook (see this file's module
+    # docstring — oauth2-proxy blocks unauthenticated inbound calls), so
+    # cancellation has to be confirmed with Stripe synchronously here rather
+    # than reconciled later. Mirrors the immediate access-revoke below: cancel
+    # the real subscription right away rather than at period end, so Stripe
+    # billing and local `tier` never disagree about whether the user is paid.
+    settings = get_settings()
+    if subscription.stripe_subscription_id and settings.stripe_secret_key:
+        try:
+            stripe.Subscription.cancel(
+                subscription.stripe_subscription_id, api_key=settings.stripe_secret_key
+            )
+        except stripe.InvalidRequestError as exc:
+            # Already gone on Stripe's side (e.g. canceled manually in the
+            # dashboard already) — nothing left to stop billing on, so let
+            # the local state clear rather than blocking the user on it.
+            if "No such subscription" not in str(exc):
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Stripe couldn't cancel this subscription: {exc.user_message or str(exc)}",
+                ) from exc
+        except stripe.StripeError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Stripe couldn't cancel this subscription: {exc.user_message or str(exc)}",
+            ) from exc
+
     subscription.status = "canceled"
     subscription.cancel_at_period_end = True
     subscription.updated_at = datetime.utcnow()
