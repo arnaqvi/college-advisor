@@ -63,7 +63,12 @@ async def test_register_creates_free_account_and_session(test_session: AsyncSess
 
 
 @pytest.mark.asyncio
-async def test_register_with_paid_plan_sets_tier_paid(test_session: AsyncSession) -> None:
+async def test_register_with_paid_plan_still_grants_free_tier(test_session: AsyncSession) -> None:
+    """`plan` in the register payload must never grant paid tier directly —
+    that field only drives the frontend's post-signup checkout redirect.
+    Paid tier is only ever earned via `POST /checkout` + `GET
+    /checkout/verify` after real Stripe payment (see upsert_subscription_for_user's
+    callers in auth.py, and billing.py's `subscribe()` for the same guard)."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
@@ -77,7 +82,7 @@ async def test_register_with_paid_plan_sets_tier_paid(test_session: AsyncSession
             },
         )
         assert response.status_code == 200
-        assert response.json()["tier"] == "paid"
+        assert response.json()["tier"] == "free"
 
 
 @pytest.mark.asyncio
@@ -157,7 +162,10 @@ async def test_login_wrong_password_and_unknown_email_both_generic(test_session:
 
 @pytest.mark.asyncio
 async def test_register_creates_billing_subscription(test_session: AsyncSession) -> None:
-    """Bridges Subscription <-> User.tier — see upsert_subscription_for_user."""
+    """Bridges Subscription <-> User.tier — see upsert_subscription_for_user.
+    Always `free` regardless of the requested plan (see
+    test_register_with_paid_plan_still_grants_free_tier) — a paid `plan`
+    value only takes effect after checkout, never at registration."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         await client.post(
@@ -175,7 +183,7 @@ async def test_register_creates_billing_subscription(test_session: AsyncSession)
     account = result.scalar_one()
     result = await test_session.execute(select(Subscription).where(Subscription.account_id == account.id))
     subscription = result.scalar_one()
-    assert subscription.plan == "individual"
+    assert subscription.plan == "free"
     assert subscription.status == "active"
 
 

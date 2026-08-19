@@ -8,6 +8,7 @@ import PasswordField from '../components/PasswordField.jsx'
 import { trackEvent } from '../lib/trackEvent.js'
 import { useAuth } from '../context/AuthContext.jsx'
 import { fetchAuthConfig, googleLoginUrl } from '../lib/api/auth.js'
+import { createCheckoutSession } from '../lib/api/billing.js'
 import { PLANS } from '../data/plans.js'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -38,6 +39,7 @@ export default function StudentRegister() {
   const [errors, setErrors] = useState({})
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [checkoutError, setCheckoutError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [googleEnabled, setGoogleEnabled] = useState(false)
   const { register } = useAuth()
@@ -84,6 +86,21 @@ export default function StudentRegister() {
       })
       trackEvent({ component: 'student_register', eventType: 'submit', metadata: { gradYear: form.gradYear, plan: form.plan } })
       setSubmitted(true)
+
+      // The account is always created on `free` (see backend/app/routers/
+      // auth.py's register()) — a paid plan selection here only takes
+      // effect after real Stripe payment, so send the browser straight to
+      // checkout instead of the dashboard. If checkout can't be started,
+      // the account still exists as free — stay on the "account created"
+      // screen (below) rather than losing the user mid-flow.
+      if (form.plan !== 'free') {
+        try {
+          const { checkout_url: checkoutUrl } = await createCheckoutSession(form.plan)
+          window.location.href = checkoutUrl
+        } catch (err) {
+          setCheckoutError(err.message || 'Could not start checkout — you can upgrade anytime from Pricing.')
+        }
+      }
     } catch (err) {
       setSubmitError(err.message || 'Could not create your account — please try again.')
     } finally {
@@ -103,6 +120,11 @@ export default function StudentRegister() {
           <p className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
             Welcome, {form.firstName}! You're signed in and ready to start planning.
           </p>
+          {checkoutError && (
+            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+              {checkoutError}
+            </p>
+          )}
           <button
             type="button"
             onClick={() => navigate('/student-dashboard')}
@@ -211,7 +233,9 @@ export default function StudentRegister() {
                 })}
               </div>
               <p className="mt-2 text-xs text-slate-400">
-                No payment required yet — you can change plans anytime from Pricing.
+                {form.plan === 'free'
+                  ? 'No payment required — you can upgrade anytime from Pricing.'
+                  : "You'll be taken to secure checkout after creating your account."}
               </p>
             </div>
 
