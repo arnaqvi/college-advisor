@@ -113,6 +113,7 @@ export default function StudentRegister() {
       icon={GraduationCap}
       panelTitle="Start your college journey"
       panelBody="Create an account to track colleges, deadlines, and scholarships built around your goals."
+      maxWidthClassName="max-w-6xl"
     >
       {submitted ? (
         <div className="space-y-6">
@@ -218,7 +219,7 @@ export default function StudentRegister() {
                       key={plan.id}
                       type="button"
                       onClick={() => handleChange('plan', plan.id)}
-                      className={`rounded-lg border p-3 text-left transition-colors ${
+                      className={`rounded-lg border p-4 text-left transition-colors ${
                         selected ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500' : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >

@@ -41,26 +41,28 @@ export default function Navbar() {
           isCompact ? 'py-[14px]' : 'py-[22px]'
         }`}
       >
-        <Link to="/" className="flex items-center gap-3 text-[#101210]">
-          <BrandMark size={28} />
-          <span className="font-display text-[18px] font-extrabold tracking-tight">
-            College<span className="text-accent-contrast">Path</span>
-          </span>
-        </Link>
+        <div className="flex items-center gap-10">
+          <Link to="/" className="flex items-center gap-3 text-[#101210]">
+            <BrandMark size={28} />
+            <span className="font-display text-[18px] font-extrabold tracking-tight">
+              College<span className="text-accent-contrast">Path</span>
+            </span>
+          </Link>
 
-        <nav className="hidden items-center gap-10 text-[14.5px] font-medium text-[#5B5E58] md:flex">
-          {navItems.map((item) => (
-            item.href.startsWith('/') ? (
-              <Link key={item.label} to={item.href} className="transition-colors duration-300 hover:text-[#101210]">
-                {item.label}
-              </Link>
-            ) : (
-              <a key={item.label} href={item.href} className="transition-colors duration-300 hover:text-[#101210]">
-                {item.label}
-              </a>
-            )
-          ))}
-        </nav>
+          <nav className="hidden items-center gap-10 text-[14.5px] font-medium text-[#5B5E58] md:flex">
+            {navItems.map((item) => (
+              item.href.startsWith('/') ? (
+                <Link key={item.label} to={item.href} className="transition-colors duration-300 hover:text-[#101210]">
+                  {item.label}
+                </Link>
+              ) : (
+                <a key={item.label} href={item.href} className="transition-colors duration-300 hover:text-[#101210]">
+                  {item.label}
+                </a>
+              )
+            ))}
+          </nav>
+        </div>
 
         <div className="flex items-center gap-3">
           {user ? (

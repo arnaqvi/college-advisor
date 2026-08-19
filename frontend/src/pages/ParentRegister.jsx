@@ -107,6 +107,7 @@ export default function ParentRegister() {
       icon={Users}
       panelTitle="Follow the journey together"
       panelBody="Create an account to stay connected to your student's college planning progress."
+      maxWidthClassName="max-w-6xl"
     >
       {submitted ? (
         <div className="space-y-6">
@@ -202,7 +203,7 @@ export default function ParentRegister() {
                       key={plan.id}
                       type="button"
                       onClick={() => handleChange('plan', plan.id)}
-                      className={`rounded-lg border p-3 text-left transition-colors ${
+                      className={`rounded-lg border p-4 text-left transition-colors ${
                         selected ? 'border-accent bg-accent/5 ring-1 ring-accent' : 'border-border hover:border-text-secondary/30'
                       }`}
                     >

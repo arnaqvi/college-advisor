@@ -1,5 +1,5 @@
 import React from 'react'
-import { ArrowRight, Bot, CalendarDays, CheckCircle2, Columns, Globe2, GraduationCap, LineChart, MessagesSquare, ShieldCheck, Sparkles, Target } from 'lucide-react'
+import { ArrowRight, Bot, CalendarDays, CheckCircle2, Columns, Globe2, GraduationCap, LineChart, MessagesSquare, Rocket, ShieldCheck, Sparkles, Target } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar.jsx'
 import Hero from '../components/Hero.jsx'
@@ -328,26 +328,37 @@ export default function Homepage() {
         </section>
 
         <section className="py-[88px]">
-          <div className="mx-auto grid gap-6 px-5 md:px-8 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="mx-auto grid items-start gap-6 px-5 md:px-8 lg:grid-cols-[1.05fr_0.95fr]">
             <Reveal className="landing-hover rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-8">
-              <p className="font-display text-sm font-extrabold uppercase tracking-[0.24em] text-[var(--mint-deep)]">
-                Execution
-              </p>
-              <h2 className="font-display mt-4 text-4xl font-extrabold tracking-tight text-[var(--ink)] sm:text-[44px]">
-                Move from planning to action without losing momentum.
-              </h2>
-              <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-display text-sm font-extrabold uppercase tracking-[0.24em] text-[var(--mint-deep)]">
+                    Execution
+                  </p>
+                  <h2 className="font-display mt-4 text-4xl font-extrabold tracking-tight text-[var(--ink)] sm:text-[44px]">
+                    Move from planning to action without losing momentum.
+                  </h2>
+                </div>
+                <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--mint-tint)] text-[var(--mint-deep)]">
+                  <Rocket size={20} />
+                </span>
+              </div>
+              <div className="mt-8 space-y-4">
                 {[
-                  'Personalized monthly roadmap',
-                  'Essay status across every application',
-                  'Aid and scholarship tracking',
-                  'One source of truth for everyone involved',
-                ].map((item) => (
+                  ['Personalized roadmap', 'Month-by-month plan tuned to your deadlines'],
+                  ['Essay tracking', 'Status across every application in one view'],
+                  ['Aid & scholarships', 'Every award and deadline tracked in one place'],
+                  ['Shared visibility', 'One source of truth for students, parents, and counselors'],
+                ].map(([label, value]) => (
                   <div
-                    key={item}
-                    className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-4 py-4 text-sm leading-6 text-[var(--ink-soft)]"
+                    key={label}
+                    className="flex items-center justify-between rounded-2xl bg-[var(--bg)] px-4 py-4"
                   >
-                    {item}
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--ink-faint)]">{label}</p>
+                      <p className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">{value}</p>
+                    </div>
+                    <ArrowRight size={18} className="text-[var(--mint-deep)]" />
                   </div>
                 ))}
               </div>
@@ -356,7 +367,7 @@ export default function Homepage() {
             <Reveal delay="0.14s" className="landing-hover rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-8">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-display text-sm font-extrabold uppercase tracking-[0.24em] text-[var(--ink-faint)]">
+                  <p className="font-display text-sm font-extrabold uppercase tracking-[0.24em] text-[var(--mint-deep)]">
                     Comparison workspace
                   </p>
                   <h3 className="font-display mt-3 text-[32px] font-extrabold tracking-tight text-[var(--ink)]">
