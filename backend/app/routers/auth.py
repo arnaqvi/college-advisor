@@ -81,7 +81,13 @@ async def register(
     db.add(user)
     await db.flush()
 
-    await upsert_subscription_for_user(db, user, payload.plan)
+    # Always grant `free` here regardless of `payload.plan` — same guard as
+    # `POST /subscribe` (see billing.py's module docstring). A paid plan must
+    # come from real Stripe payment via `POST /checkout` + `GET
+    # /checkout/verify`, never from a client-supplied field at signup time.
+    # The frontend sends the user straight to checkout after registration if
+    # they picked a paid plan here.
+    await upsert_subscription_for_user(db, user, "free")
 
     _set_session_cookie(response, user)
     return _user_out(user)
@@ -257,7 +263,9 @@ async def google_callback(
         )
         db.add(user)
         await db.flush()
-        await upsert_subscription_for_user(db, user, plan or "free")
+        # Same guard as password registration above — never grant a paid
+        # plan from a client-supplied value with no real payment behind it.
+        await upsert_subscription_for_user(db, user, "free")
     elif user.google_sub is None:
         user.google_sub = google_sub
         await db.commit()
