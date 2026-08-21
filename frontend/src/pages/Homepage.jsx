@@ -567,6 +567,9 @@ export default function Homepage() {
             <Link to="/child-safety" className="transition-colors duration-300 hover:text-[var(--ink)]">
               Child Safety &amp; AI Use
             </Link>
+            <Link to="/contact" className="transition-colors duration-300 hover:text-[var(--ink)]">
+              Contact
+            </Link>
           </div>
         </Reveal>
       </footer>
