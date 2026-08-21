@@ -128,6 +128,7 @@ def create_app() -> FastAPI:
     from app.routers.advisor import router as advisor_router
     from app.routers.bias_research import router as bias_research_router
     from app.routers.tasks import router as tasks_router
+    from app.routers.feedback import router as feedback_router
 
     app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
     app.include_router(billing_router, prefix="/api/billing", tags=["billing"])
@@ -137,6 +138,7 @@ def create_app() -> FastAPI:
     app.include_router(advisor_router, prefix="/api/advisor", tags=["advisor"])
     app.include_router(bias_research_router, prefix="/api/bias-research", tags=["bias-research"])
     app.include_router(tasks_router, prefix="/api/tasks", tags=["tasks"])
+    app.include_router(feedback_router, prefix="/api/feedback", tags=["feedback"])
 
     @app.get("/")
     async def root() -> dict[str, str]:

@@ -88,6 +88,10 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = "no-reply@college-advisor.labs.evolveml.io"
 
+    # Contact Us / feedback form (app/routers/feedback.py) — where submissions
+    # are sent. Reuses the smtp_* settings above for delivery.
+    feedback_to_email: str = "admin@collegepath.io"
+
     password_reset_token_max_age_minutes: int = 60
 
     # AI Advisor chat (app/routers/advisor.py). Self-service: Ahsan provides

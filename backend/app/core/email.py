@@ -1,9 +1,9 @@
-"""Password-reset email delivery.
+"""Password-reset and Contact Us email delivery.
 
 No SMTP credentials are configured yet (see app/core/config.py's
 smtp_host/etc. docstring) — until Ahsan sets them via `/set-app-env`, this
-logs the reset link at INFO level instead of emailing it, same
-not-configured-fallback pattern used elsewhere in this app (Google OAuth,
+logs the reset link / feedback content at INFO level instead of emailing it,
+same not-configured-fallback pattern used elsewhere in this app (Google OAuth,
 Stripe, Azure Blob, College Scorecard).
 """
 
@@ -49,6 +49,32 @@ def send_password_reset_email(to_email: str, token: str) -> None:
         f"This link expires in {settings.password_reset_token_max_age_minutes} minutes. "
         "If you didn't request this, you can ignore this email."
     )
+
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as smtp:
+        smtp.starttls()
+        if settings.smtp_username:
+            smtp.login(settings.smtp_username, settings.smtp_password)
+        smtp.send_message(message)
+
+
+def send_feedback_email(name: str, from_email: str, message_body: str) -> None:
+    settings = get_settings()
+
+    if not settings.smtp_host:
+        logger.info(
+            "Contact form submission from %s <%s> — SMTP not configured, message: %s",
+            name,
+            from_email,
+            message_body,
+        )
+        return
+
+    message = EmailMessage()
+    message["Subject"] = f"CollegePath contact form: {name}"
+    message["From"] = settings.smtp_from_email
+    message["To"] = settings.feedback_to_email
+    message["Reply-To"] = from_email
+    message.set_content(f"From: {name} <{from_email}>\n\n{message_body}")
 
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as smtp:
         smtp.starttls()

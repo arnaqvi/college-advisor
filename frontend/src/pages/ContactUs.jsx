@@ -1,5 +1,9 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar.jsx'
+import { submitFeedback } from '../lib/api/feedback.js'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const reasons = [
   {
@@ -17,6 +21,35 @@ const reasons = [
 ]
 
 export default function ContactUs() {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!name.trim() || !email.trim() || !message.trim()) {
+      setError('Please fill in your name, email, and message.')
+      return
+    }
+    if (!EMAIL_RE.test(email.trim())) {
+      setError('Enter a valid email address.')
+      return
+    }
+    setError('')
+    setSubmitting(true)
+    try {
+      await submitFeedback({ name: name.trim(), email: email.trim(), message: message.trim() })
+      setSubmitted(true)
+    } catch {
+      setError('Something went wrong sending your message. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
       <Navbar />
@@ -28,15 +61,64 @@ export default function ContactUs() {
               Contact Us
             </h1>
             <p className="mt-6 max-w-4xl text-lg leading-8 text-[var(--ink-soft)]">
-              Have a question, ran into an issue, or just want to say hello? Email us directly and a
-              real person will get back to you.
+              Have a question, ran into an issue, or just want to say hello? Send us a message below
+              and a real person will get back to you.
             </p>
-            <a
-              href="mailto:admin@collegepath.io"
-              className="landing-button-dark mt-8 inline-flex items-center justify-center rounded-full bg-[var(--dark)] px-7 py-4 text-sm font-semibold text-white"
-            >
-              Email admin@collegepath.io
-            </a>
+
+            <div className="mt-10 max-w-xl">
+              {submitted ? (
+                <p className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 leading-7 text-[var(--ink-soft)]">
+                  Thanks for reaching out — we've received your message and will get back to you soon.
+                </p>
+              ) : (
+                <form onSubmit={handleSubmit} noValidate className="space-y-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-[var(--ink-faint)]">Name</span>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Your name"
+                      autoComplete="name"
+                      className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)]"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-medium text-[var(--ink-faint)]">Email</span>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)]"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="text-xs font-medium text-[var(--ink-faint)]">Message</span>
+                    <textarea
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      placeholder="How can we help?"
+                      rows={5}
+                      className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)]"
+                    />
+                  </label>
+
+                  {error && <p className="text-sm text-red-600">{error}</p>}
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="landing-button-dark inline-flex items-center justify-center rounded-full bg-[var(--dark)] px-7 py-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {submitting ? 'Sending…' : 'Send Message'}
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
         </section>
 
