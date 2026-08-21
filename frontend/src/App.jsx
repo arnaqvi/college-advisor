@@ -32,6 +32,7 @@ import PricingSuccess from './pages/PricingSuccess.jsx'
 import PricingCancel from './pages/PricingCancel.jsx'
 import AboutUs from './pages/AboutUs.jsx'
 import ChildSafety from './pages/ChildSafety.jsx'
+import ContactUs from './pages/ContactUs.jsx'
 import { OnboardingLayout } from './features/onboarding/OnboardingLayout'
 
 // import.meta.env.BASE_URL mirrors the `base` set in vite.config.js, so routes
@@ -47,6 +48,7 @@ function App() {
             <Route path="/" element={<Homepage />} />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/child-safety" element={<ChildSafety />} />
+            <Route path="/contact" element={<ContactUs />} />
 
             {/* Role-based auth flow */}
             <Route path="/login" element={<RoleSelect />} />

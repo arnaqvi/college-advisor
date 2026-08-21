@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import BrandMark from './BrandMark.jsx'
 
 const columns = [
@@ -42,11 +43,17 @@ export default function Footer() {
                 {column.heading}
               </h3>
               <div className="mt-5 space-y-3 text-sm text-text-secondary">
-                {column.links.map((link) => (
-                  <a key={link} href="#" className="block transition hover:text-ink">
-                    {link}
-                  </a>
-                ))}
+                {column.links.map((link) =>
+                  link === 'Contact' ? (
+                    <Link key={link} to="/contact" className="block transition hover:text-ink">
+                      {link}
+                    </Link>
+                  ) : (
+                    <a key={link} href="#" className="block transition hover:text-ink">
+                      {link}
+                    </a>
+                  ),
+                )}
               </div>
             </div>
           ))}
