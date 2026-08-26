@@ -17,7 +17,7 @@ const PLAN_VALUES = { individual: 9.0, family: 25.0 }
 export default function PricingSuccess() {
   const [searchParams] = useSearchParams()
   const sessionId = searchParams.get('session_id')
-  const { refresh } = useAuth()
+  const { user, refresh } = useAuth()
   const [state, setState] = useState({ status: 'verifying', message: null, plan: null })
 
   useEffect(() => {
@@ -36,6 +36,14 @@ export default function PricingSuccess() {
           // gate on a per-session_id flag so Google Ads doesn't double-count.
           const conversionKey = `ga_conversion_recorded_${sessionId}`
           if (typeof window.gtag === 'function' && !sessionStorage.getItem(conversionKey)) {
+            // Enhanced conversions: our checkout happens on Stripe's domain, so
+            // there's no email field on THIS page for Google's automatic DOM
+            // scan to find. Passing it explicitly is what actually makes
+            // enhanced conversions work here. gtag hashes it (SHA-256) before
+            // sending — plaintext never leaves the browser.
+            if (user?.email) {
+              window.gtag('set', 'user_data', { email: user.email })
+            }
             window.gtag('event', 'conversion', {
               send_to: 'AW-18399167371/pJGCCMqxy-QcEIuHtMVE',
               value: PLAN_VALUES[result.plan] ?? 1.0,
