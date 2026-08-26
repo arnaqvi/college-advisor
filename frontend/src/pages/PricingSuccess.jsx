@@ -4,6 +4,10 @@ import { CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { verifyCheckoutSession } from '../lib/api/billing.js'
 
+// Mirrors backend/app/routers/billing.py's _CHECKOUT_PLAN_PRICING (in dollars,
+// not cents) — used only to give the Google Ads conversion event a real value.
+const PLAN_VALUES = { individual: 9.0, family: 25.0 }
+
 // Landed on after Stripe Checkout redirects back with `?session_id=...`
 // (see success_url in backend/app/routers/billing.py's create_checkout_session).
 // The plan is NOT granted by anything the browser did — this page's only job
@@ -27,6 +31,19 @@ export default function PricingSuccess() {
         if (cancelled) return
         setState({ status: result.status, message: result.message, plan: result.plan })
         if (result.status === 'paid') {
+          // This effect re-runs on every refresh/revisit of this URL (verify
+          // is idempotent), but a purchase should only be reported once —
+          // gate on a per-session_id flag so Google Ads doesn't double-count.
+          const conversionKey = `ga_conversion_recorded_${sessionId}`
+          if (typeof window.gtag === 'function' && !sessionStorage.getItem(conversionKey)) {
+            window.gtag('event', 'conversion', {
+              send_to: 'AW-18399167371/pJGCCMqxy-QcEIuHtMVE',
+              value: PLAN_VALUES[result.plan] ?? 1.0,
+              currency: 'USD',
+              transaction_id: sessionId,
+            })
+            sessionStorage.setItem(conversionKey, '1')
+          }
           // Plan/tier just changed server-side — re-check the session so
           // Layout.jsx's nav gating picks it up without a full reload.
           await refresh()
