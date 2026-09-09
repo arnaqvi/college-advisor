@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from typing import cast
 
 import stripe
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +33,7 @@ from app.core.auth import get_current_user
 from app.models.billing import Account, Subscription
 from app.models.user import User
 from app.schemas.auth import Plan
+from app.services.meta_capi import send_purchase_event
 
 router = APIRouter()
 
@@ -309,6 +310,7 @@ async def create_checkout_session(
 @router.get("/checkout/verify", response_model=CheckoutVerifyOut)
 async def verify_checkout_session(
     session_id: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> CheckoutVerifyOut:
@@ -374,6 +376,16 @@ async def verify_checkout_session(
     if stripe_subscription_id:
         subscription.stripe_subscription_id = stripe_subscription_id
         await db.commit()
+
+    await send_purchase_event(
+        email=current_user.email,
+        value=_CHECKOUT_PLAN_PRICING[plan_literal].unit_amount / 100,
+        currency="usd",
+        event_id=session_id,
+        event_source_url=f"{_frontend_base_url()}/pricing/success",
+        client_ip=request.client.host if request.client else None,
+        client_user_agent=request.headers.get("user-agent"),
+    )
 
     return CheckoutVerifyOut(status="paid", plan=plan)
 
