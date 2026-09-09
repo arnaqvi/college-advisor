@@ -10,6 +10,23 @@
 
       gtag('config', 'AW-18399167371');
     </script>
+    <!-- Meta Pixel — dataset "collegepath" (Events Manager), ID doubles as the
+         Pixel ID under Meta's unified Pixel/Conversions API dataset model.
+         PricingSuccess.jsx fires the Purchase event with a matching eventID
+         so this and the server-side CAPI Purchase event
+         (backend/app/services/meta_capi.py) dedup instead of double-counting. -->
+    <script>
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '1116003507523517');
+      fbq('track', 'PageView');
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -22,6 +39,13 @@
     <title>CollegePath.ai</title>
   </head>
   <body>
+    <!-- Meta Pixel noscript fallback — must live in <body>, not <head>; the
+         HTML spec disallows an <img> inside a <noscript> in <head> (Vite's
+         build-time HTML parser enforces this strictly and fails otherwise). -->
+    <noscript>
+      <img height="1" width="1" style="display:none"
+        src="https://www.facebook.com/tr?id=1116003507523517&ev=PageView&noscript=1" />
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
