@@ -20,11 +20,13 @@ async function parseErrorDetail(response) {
 // Returns `{ checkout_url }` to redirect the browser to, or throws with a
 // readable message — including the "Stripe isn't set up yet" not_configured
 // case, which the backend reports as a 400 with a structured detail body.
-export async function createCheckoutSession(plan) {
+// `interval` is `'month'` (default) or `'year'` — must match a key in
+// backend/app/routers/billing.py's `_CHECKOUT_PLAN_PRICING`.
+export async function createCheckoutSession(plan, interval = 'month') {
   const response = await fetch(`${API_BASE}api/billing/checkout`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ plan }),
+    body: JSON.stringify({ plan, interval }),
   })
   if (!response.ok) throw new Error(await parseErrorDetail(response))
   return response.json()

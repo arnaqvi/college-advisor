@@ -31,6 +31,7 @@ class Subscription(Base):
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), default=None)
     plan: Mapped[str] = mapped_column(String(50))  # free|individual|family
+    billing_interval: Mapped[str] = mapped_column(String(10), default="month")  # month|year
     status: Mapped[str] = mapped_column(
         String(50), default="trial"
     )  # trial|active|past_due|canceled

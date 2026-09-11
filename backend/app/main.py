@@ -40,6 +40,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await _ensure_user_name_column()
+    await _ensure_subscription_billing_interval_column()
     # Register sync handlers after tables are created
     register_sync_handlers()
     await _seed_colleges_if_empty()
@@ -60,6 +61,29 @@ async def _ensure_user_name_column() -> None:
         columns = await conn.run_sync(lambda sync_conn: [c["name"] for c in inspect(sync_conn).get_columns("users")])
         if "name" not in columns:
             await conn.execute(text("ALTER TABLE users ADD COLUMN name VARCHAR(255)"))
+
+
+async def _ensure_subscription_billing_interval_column() -> None:
+    """`subscriptions.billing_interval` was added after the `subscriptions`
+    table already existed in production (the repricing/annual-plan work) —
+    same `create_all`-won't-alter-existing-tables situation as
+    `_ensure_user_name_column` above. Existing rows default to `'month'`,
+    which matches every subscription granted before this column existed
+    (annual billing didn't exist yet, so they were all monthly).
+    """
+    from sqlalchemy import inspect, text
+
+    async with engine.begin() as conn:
+        columns = await conn.run_sync(
+            lambda sync_conn: [c["name"] for c in inspect(sync_conn).get_columns("subscriptions")]
+        )
+        if "billing_interval" not in columns:
+            await conn.execute(
+                text(
+                    "ALTER TABLE subscriptions ADD COLUMN billing_interval "
+                    "VARCHAR(10) DEFAULT 'month'"
+                )
+            )
 
 
 async def _seed_colleges_if_empty() -> None:

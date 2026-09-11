@@ -52,6 +52,22 @@ export default function PricingSuccess() {
             })
             sessionStorage.setItem(conversionKey, '1')
           }
+          // Meta Pixel + Conversions API dedup: same eventID (the Stripe
+          // session_id) as the server-side Purchase event in
+          // backend/app/services/meta_capi.py, sent from
+          // verify_checkout_session — Meta merges the two into one
+          // conversion instead of double-counting. Gated the same way as
+          // the Google Ads conversion above, on its own key.
+          const fbConversionKey = `fb_conversion_recorded_${sessionId}`
+          if (typeof window.fbq === 'function' && !sessionStorage.getItem(fbConversionKey)) {
+            window.fbq(
+              'track',
+              'Purchase',
+              { value: PLAN_VALUES[result.plan] ?? 1.0, currency: 'USD' },
+              { eventID: sessionId }
+            )
+            sessionStorage.setItem(fbConversionKey, '1')
+          }
           // Plan/tier just changed server-side — re-check the session so
           // Layout.jsx's nav gating picks it up without a full reload.
           await refresh()

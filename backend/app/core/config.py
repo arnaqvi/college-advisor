@@ -102,6 +102,15 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-5"
 
+    # Meta Conversions API (app/services/meta_capi.py). Reports a server-side
+    # `Purchase` event once Stripe payment is independently verified, so Meta
+    # ad delivery can optimize toward real conversions. Dataset already
+    # exists in Events Manager ("collegepath"); the access token is
+    # generated from that dataset's Settings tab and set via `/set-app-env`.
+    # Same not-configured pattern as stripe_secret_key above.
+    meta_dataset_id: str = "1116003507523517"
+    meta_capi_access_token: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

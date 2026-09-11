@@ -19,10 +19,10 @@ a paid tier for free, so it now rejects non-free plans. See `subscribe()`.
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import cast
+from typing import Literal, cast
 
 import stripe
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,8 +33,11 @@ from app.core.auth import get_current_user
 from app.models.billing import Account, Subscription
 from app.models.user import User
 from app.schemas.auth import Plan
+from app.services.meta_capi import send_purchase_event
 
 router = APIRouter()
+
+BillingInterval = Literal["month", "year"]
 
 # Stripe Prices for `individual`/`family` are created inline at checkout-time
 # via `price_data` (see `create_checkout_session`) rather than referencing
@@ -49,15 +52,25 @@ router = APIRouter()
 # are deliberately absent: `free` needs no payment, and `counselor` is
 # "Custom"/manually provisioned (see frontend/src/data/plans.js), not
 # self-serve checkout.
+#
+# Prices set 2026-09-11 per the competitive pricing review (annual amounts
+# are a steep ~65% discount off 12x monthly — "8 months free" — deliberately
+# closer to short-lifecycle consumer-app annual pricing than the ~17% SaaS
+# norm, since a student's active usage window is ~18 months, not indefinite).
+# This only affects *new* checkouts — Stripe subscriptions already created
+# keep whatever price_data they were built with, so existing subscribers are
+# unaffected without any extra migration.
 @dataclass(frozen=True)
 class _PlanPricing:
     unit_amount: int  # USD cents
     label: str
 
 
-_CHECKOUT_PLAN_PRICING: dict[str, _PlanPricing] = {
-    "individual": _PlanPricing(unit_amount=900, label="Student"),
-    "family": _PlanPricing(unit_amount=2500, label="Family"),
+_CHECKOUT_PLAN_PRICING: dict[tuple[str, BillingInterval], _PlanPricing] = {
+    ("individual", "month"): _PlanPricing(unit_amount=1900, label="Student — Monthly"),
+    ("individual", "year"): _PlanPricing(unit_amount=7900, label="Student — Annual"),
+    ("family", "month"): _PlanPricing(unit_amount=3900, label="Family — Monthly"),
+    ("family", "year"): _PlanPricing(unit_amount=14900, label="Family — Annual"),
 }
 
 
@@ -70,13 +83,16 @@ class SubscriptionIn(BaseModel):
     plan: Plan
 
 
-async def upsert_subscription_for_user(db: AsyncSession, user: User, plan: Plan) -> Subscription:
+async def upsert_subscription_for_user(
+    db: AsyncSession, user: User, plan: Plan, interval: BillingInterval = "month"
+) -> Subscription:
     """Get-or-create the user's Account, upsert their single Subscription row
-    to `plan` with no real payment collected (tier-logic-only phase — see
-    docs/user-stories.md and the auth redesign plan), and bridge the result
-    onto `User.tier` so every other endpoint has a single, already-resolved
-    field to check instead of needing its own billing lookup. Shared by
-    POST /api/auth/register (plan chosen at signup) and POST /subscribe below.
+    to `plan`/`interval` with no real payment collected (tier-logic-only
+    phase — see docs/user-stories.md and the auth redesign plan), and bridge
+    the result onto `User.tier` so every other endpoint has a single,
+    already-resolved field to check instead of needing its own billing
+    lookup. Shared by POST /api/auth/register (plan chosen at signup, always
+    `free` so `interval` is irrelevant there) and POST /subscribe below.
     """
     result = await db.execute(select(Account).where(Account.owner_user_id == user.id))
     account = result.scalar_one_or_none()
@@ -88,20 +104,23 @@ async def upsert_subscription_for_user(db: AsyncSession, user: User, plan: Plan)
     result = await db.execute(select(Subscription).where(Subscription.account_id == account.id))
     subscription = result.scalar_one_or_none()
     now = datetime.utcnow()
+    period_length = timedelta(days=365) if interval == "year" else timedelta(days=30)
     if subscription is None:
         subscription = Subscription(
             account_id=account.id,
             plan=plan,
+            billing_interval=interval,
             status="active",
-            current_period_end=now + timedelta(days=30),
+            current_period_end=now + period_length,
             trial_end=None,
             cancel_at_period_end=False,
         )
         db.add(subscription)
     else:
         subscription.plan = plan
+        subscription.billing_interval = interval
         subscription.status = "active"
-        subscription.current_period_end = now + timedelta(days=30)
+        subscription.current_period_end = now + period_length
         subscription.cancel_at_period_end = False
         subscription.updated_at = now
 
@@ -121,6 +140,7 @@ class AccountOut(BaseModel):
 class SubscriptionOut(BaseModel):
     id: int
     plan: str
+    billing_interval: str
     status: str
     current_period_end: datetime | None
     trial_end: datetime | None
@@ -153,6 +173,7 @@ async def get_billing(db: AsyncSession = Depends(get_db), current_user=Depends(g
             {
                 "id": subscription.id,
                 "plan": subscription.plan,
+                "billing_interval": subscription.billing_interval,
                 "status": subscription.status,
                 "current_period_end": subscription.current_period_end,
                 "trial_end": subscription.trial_end,
@@ -188,6 +209,7 @@ async def subscribe(
     return {
         "id": subscription.id,
         "plan": subscription.plan,
+        "billing_interval": subscription.billing_interval,
         "status": subscription.status,
         "current_period_end": subscription.current_period_end,
         "trial_end": subscription.trial_end,
@@ -196,6 +218,7 @@ async def subscribe(
 
 class CheckoutIn(BaseModel):
     plan: Plan
+    interval: BillingInterval = "month"
 
 
 class CheckoutOut(BaseModel):
@@ -246,7 +269,7 @@ async def create_checkout_session(
     granted here — only `GET /checkout/verify`, after independently
     confirming payment with Stripe, ever touches `Subscription`/`User.tier`.
     """
-    pricing = _CHECKOUT_PLAN_PRICING.get(payload.plan)
+    pricing = _CHECKOUT_PLAN_PRICING.get((payload.plan, payload.interval))
     if pricing is None:
         detail = (
             "The free plan needs no checkout — use POST /api/billing/subscribe."
@@ -282,7 +305,7 @@ async def create_checkout_session(
                 {
                     "price_data": {
                         "currency": "usd",
-                        "recurring": {"interval": "month"},
+                        "recurring": {"interval": payload.interval},
                         "unit_amount": pricing.unit_amount,
                         "product_data": {"name": f"College Advisor — {pricing.label} plan"},
                     },
@@ -292,7 +315,11 @@ async def create_checkout_session(
             success_url=f"{base_url}/pricing/success?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{base_url}/pricing/cancel",
             client_reference_id=str(current_user.id),
-            metadata={"user_id": str(current_user.id), "plan": payload.plan},
+            metadata={
+                "user_id": str(current_user.id),
+                "plan": payload.plan,
+                "interval": payload.interval,
+            },
             api_key=settings.stripe_secret_key,
         )
     except stripe.StripeError as exc:
@@ -309,6 +336,7 @@ async def create_checkout_session(
 @router.get("/checkout/verify", response_model=CheckoutVerifyOut)
 async def verify_checkout_session(
     session_id: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> CheckoutVerifyOut:
@@ -357,14 +385,24 @@ async def verify_checkout_session(
         return CheckoutVerifyOut(status="pending", message="Payment has not completed yet.")
 
     plan = metadata.get("plan")
-    if plan not in _CHECKOUT_PLAN_PRICING:
+    # Older checkout sessions (created before the annual plan shipped) have
+    # no "interval" key in their metadata at all — those were always
+    # monthly, so default to "month" rather than rejecting an in-flight
+    # session someone started right before this deploy.
+    interval = metadata.get("interval") or "month"
+    pricing_key = (plan, interval)
+    if pricing_key not in _CHECKOUT_PLAN_PRICING:
         raise HTTPException(status_code=400, detail="Checkout session is missing a valid plan.")
     # Narrowed by the membership check above (`_CHECKOUT_PLAN_PRICING`'s keys
-    # are exactly {"individual", "family"}), but mypy can't infer a str is a
-    # `Plan` Literal from a runtime `dict` membership test.
+    # are exactly {"individual", "family"} x {"month", "year"}), but mypy
+    # can't infer a str is a `Plan`/`BillingInterval` Literal from a runtime
+    # `dict` membership test.
     plan_literal = cast(Plan, plan)
+    interval_literal = cast(BillingInterval, interval)
 
-    subscription = await upsert_subscription_for_user(db, current_user, plan_literal)
+    subscription = await upsert_subscription_for_user(
+        db, current_user, plan_literal, interval_literal
+    )
 
     stripe_subscription_id = None
     if isinstance(session.subscription, str):
@@ -374,6 +412,16 @@ async def verify_checkout_session(
     if stripe_subscription_id:
         subscription.stripe_subscription_id = stripe_subscription_id
         await db.commit()
+
+    await send_purchase_event(
+        email=current_user.email,
+        value=_CHECKOUT_PLAN_PRICING[pricing_key].unit_amount / 100,
+        currency="usd",
+        event_id=session_id,
+        event_source_url=f"{_frontend_base_url()}/pricing/success",
+        client_ip=request.client.host if request.client else None,
+        client_user_agent=request.headers.get("user-agent"),
+    )
 
     return CheckoutVerifyOut(status="paid", plan=plan)
 
@@ -429,6 +477,7 @@ async def cancel_subscription(
     return {
         "id": subscription.id,
         "plan": subscription.plan,
+        "billing_interval": subscription.billing_interval,
         "status": subscription.status,
         "current_period_end": subscription.current_period_end,
         "trial_end": subscription.trial_end,

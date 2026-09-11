@@ -171,7 +171,44 @@ async def test_checkout_creates_session_and_reuses_stripe_customer(
     assert len(customer_calls) == 1
     assert session_calls[0]["mode"] == "subscription"
     assert session_calls[0]["customer"] == "cus_fake123"
-    assert session_calls[0]["line_items"][0]["price_data"]["unit_amount"] == 900
+    assert session_calls[0]["line_items"][0]["price_data"]["unit_amount"] == 1900
+    assert session_calls[0]["line_items"][0]["price_data"]["recurring"]["interval"] == "month"
+    assert session_calls[0]["metadata"]["interval"] == "month"
+
+
+@pytest.mark.asyncio
+async def test_checkout_creates_annual_session_at_annual_price(
+    test_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`interval: "year"` must price off the annual amount ($79/yr for
+    individual, not 12x the monthly $19) and tell Stripe to bill yearly.
+    """
+    fake_settings = get_settings().model_copy(update={"stripe_secret_key": "sk_test_fake"})
+    monkeypatch.setattr("app.routers.billing.get_settings", lambda: fake_settings)
+
+    session_calls = []
+
+    monkeypatch.setattr(
+        stripe.Customer, "create", staticmethod(lambda **kwargs: SimpleNamespace(id="cus_fake123"))
+    )
+
+    def fake_session_create(**kwargs):
+        session_calls.append(kwargs)
+        return SimpleNamespace(url="https://checkout.stripe.com/fake-session")
+
+    monkeypatch.setattr(stripe.checkout.Session, "create", staticmethod(fake_session_create))
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await _register_and_login(client)
+        response = await client.post(
+            "/api/billing/checkout", json={"plan": "family", "interval": "year"}
+        )
+
+    assert response.status_code == 200, response.text
+    assert session_calls[0]["line_items"][0]["price_data"]["unit_amount"] == 14900
+    assert session_calls[0]["line_items"][0]["price_data"]["recurring"]["interval"] == "year"
+    assert session_calls[0]["metadata"]["interval"] == "year"
 
 
 @pytest.mark.asyncio
@@ -220,6 +257,85 @@ async def test_verify_grants_plan_only_after_paid_status(
 
     await test_session.refresh(user)
     assert user.tier == "paid"
+
+
+@pytest.mark.asyncio
+async def test_verify_persists_annual_billing_interval_and_period(
+    test_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An annual checkout must land as `billing_interval: "year"` with a
+    ~365-day period, not the 30-day default — and `GET /api/billing/` must
+    surface that interval so the Pricing page can show "Billed annually".
+    """
+    fake_settings = get_settings().model_copy(update={"stripe_secret_key": "sk_test_fake"})
+    monkeypatch.setattr("app.routers.billing.get_settings", lambda: fake_settings)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await _register_and_login(client)
+        result = await test_session.execute(select(User).where(User.email == "billing@example.com"))
+        user = result.scalar_one()
+
+        def fake_retrieve_paid(session_id, api_key=None):
+            return SimpleNamespace(
+                metadata={"user_id": str(user.id), "plan": "individual", "interval": "year"},
+                client_reference_id=str(user.id),
+                payment_status="paid",
+                subscription="sub_fake_annual",
+            )
+
+        monkeypatch.setattr(stripe.checkout.Session, "retrieve", staticmethod(fake_retrieve_paid))
+        verify_response = await client.get(
+            "/api/billing/checkout/verify", params={"session_id": "cs_test_annual"}
+        )
+        assert verify_response.status_code == 200
+        assert verify_response.json()["status"] == "paid"
+
+        billing_response = await client.get("/api/billing/")
+        subscription = billing_response.json()["subscription"]
+        assert subscription["billing_interval"] == "year"
+
+    from datetime import datetime
+
+    period_end = datetime.fromisoformat(subscription["current_period_end"])
+    days_out = (period_end - datetime.utcnow()).days
+    assert 350 <= days_out <= 365  # ~365 days, not the 30-day monthly default
+
+
+@pytest.mark.asyncio
+async def test_verify_old_session_without_interval_metadata_defaults_to_monthly(
+    test_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A checkout session created before the annual plan shipped has no
+    "interval" key in its metadata at all — verify must still succeed and
+    treat it as monthly, not reject it as an unrecognized plan.
+    """
+    fake_settings = get_settings().model_copy(update={"stripe_secret_key": "sk_test_fake"})
+    monkeypatch.setattr("app.routers.billing.get_settings", lambda: fake_settings)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await _register_and_login(client)
+        result = await test_session.execute(select(User).where(User.email == "billing@example.com"))
+        user = result.scalar_one()
+
+        def fake_retrieve_paid(session_id, api_key=None):
+            return SimpleNamespace(
+                metadata={"user_id": str(user.id), "plan": "individual"},  # no "interval" key
+                client_reference_id=str(user.id),
+                payment_status="paid",
+                subscription="sub_fake_pre_annual",
+            )
+
+        monkeypatch.setattr(stripe.checkout.Session, "retrieve", staticmethod(fake_retrieve_paid))
+        response = await client.get(
+            "/api/billing/checkout/verify", params={"session_id": "cs_test_pre_annual"}
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "paid"
+
+        billing_response = await client.get("/api/billing/")
+        assert billing_response.json()["subscription"]["billing_interval"] == "month"
 
 
 class _RealShapeStripeMetadata:
