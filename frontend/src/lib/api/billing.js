@@ -42,3 +42,12 @@ export async function verifyCheckoutSession(sessionId) {
   if (!response.ok) throw new Error(await parseErrorDetail(response))
   return response.json()
 }
+
+// The cancel-flow win-back offer — a one-time 50%-off coupon applied to the
+// caller's existing Stripe subscription (see billing.py's
+// apply_retention_offer). Returns `{ status: 'applied', message }`.
+export async function applyRetentionOffer() {
+  const response = await fetch(`${API_BASE}api/billing/retention-offer`, { method: 'POST' })
+  if (!response.ok) throw new Error(await parseErrorDetail(response))
+  return response.json()
+}

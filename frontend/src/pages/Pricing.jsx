@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { PLANS } from '../data/plans.js'
-import { createCheckoutSession } from '../lib/api/billing.js'
+import { applyRetentionOffer, createCheckoutSession } from '../lib/api/billing.js'
 
 const API_BASE = import.meta.env.BASE_URL.endsWith('/')
   ? import.meta.env.BASE_URL
@@ -17,6 +17,11 @@ export default function Pricing() {
   // Named `billingInterval`, not `interval` — `setInterval` would shadow the
   // global timer function of the same name.
   const [billingInterval, setBillingInterval] = useState('month')
+  // Holds the plan id being canceled while the win-back modal is open, or
+  // `null` when it's closed — doubles as "is the modal showing".
+  const [cancelModalPlanId, setCancelModalPlanId] = useState(null)
+  const [retentionOfferApplied, setRetentionOfferApplied] = useState(false)
+  const [retentionError, setRetentionError] = useState(null)
 
   async function refreshBilling() {
     // Same-origin request — the session cookie is sent automatically, no
@@ -72,13 +77,39 @@ export default function Pricing() {
     }
   }
 
-  async function cancel() {
+  // Access continues until the current paid period ends — the backend
+  // schedules cancellation with Stripe rather than revoking immediately
+  // (see billing.py's cancel_subscription docstring), so this doesn't
+  // instantly flip the user to Free.
+  async function confirmCancel() {
     if (!user) return
     setLoading(true)
     await fetch(`${API_BASE}api/billing/cancel`, { method: 'POST' })
     await refreshBilling()
     await refresh()
     setLoading(false)
+    setCancelModalPlanId(null)
+  }
+
+  // The win-back offer on the cancel modal — applies a one-time 50%-off
+  // coupon to the next renewal and keeps the subscription as-is (no local
+  // tier/status change, so no refreshBilling()/refresh() needed).
+  async function keepWithDiscount() {
+    setLoading(true)
+    setRetentionError(null)
+    try {
+      await applyRetentionOffer()
+      setRetentionOfferApplied(true)
+    } catch (err) {
+      setRetentionError(err.message)
+    }
+    setLoading(false)
+  }
+
+  function closeCancelModal() {
+    setCancelModalPlanId(null)
+    setRetentionOfferApplied(false)
+    setRetentionError(null)
   }
 
   return (
@@ -148,7 +179,11 @@ export default function Pricing() {
                 </div>
                 <div>
                   {active ? (
-                    <button onClick={cancel} disabled={loading} className="rounded-full bg-rose-500 px-3 py-1.5 text-xs font-semibold text-white">
+                    <button
+                      onClick={() => (p.id === 'free' ? confirmCancel() : setCancelModalPlanId(p.id))}
+                      disabled={loading}
+                      className="rounded-full bg-rose-500 px-3 py-1.5 text-xs font-semibold text-white"
+                    >
                       Cancel
                     </button>
                   ) : p.id === 'free' ? (
@@ -166,6 +201,69 @@ export default function Pricing() {
           )
         })}
       </div>
+
+      {cancelModalPlanId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-xl">
+            {retentionOfferApplied ? (
+              <>
+                <h3 className="text-lg font-semibold text-text-primary">Discount applied 🎉</h3>
+                <p className="mt-2 text-sm text-text-secondary">
+                  Your next renewal is 50% off. Your plan continues as normal — nothing else changes.
+                </p>
+                <button
+                  onClick={closeCancelModal}
+                  className="mt-5 w-full rounded-full bg-accent px-3 py-2 text-sm font-semibold text-accent-contrast"
+                >
+                  Done
+                </button>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold text-text-primary">Before you go</h3>
+                <p className="mt-2 text-sm text-text-secondary">
+                  Want 50% off your next renewal instead of canceling? Your plan and everything in it stays exactly the same.
+                </p>
+                {retentionError && (
+                  <div className="mt-3 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                    {retentionError}
+                  </div>
+                )}
+                <button
+                  onClick={keepWithDiscount}
+                  disabled={loading}
+                  className="mt-4 w-full rounded-full bg-accent px-3 py-2 text-sm font-semibold text-accent-contrast"
+                >
+                  Keep my plan — 50% off next renewal
+                </button>
+                <p className="mt-4 text-xs text-text-secondary">
+                  If you cancel instead, you keep full access until{' '}
+                  {billing?.subscription?.current_period_end
+                    ? new Date(billing.subscription.current_period_end).toLocaleDateString()
+                    : 'the end of your current billing period'}
+                  {' '}— you won't be billed again after that.
+                </p>
+                <div className="mt-3 flex gap-3">
+                  <button
+                    onClick={confirmCancel}
+                    disabled={loading}
+                    className="flex-1 rounded-full border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-600"
+                  >
+                    No thanks, cancel my plan
+                  </button>
+                  <button
+                    onClick={closeCancelModal}
+                    disabled={loading}
+                    className="flex-1 rounded-full border border-border px-3 py-2 text-sm font-semibold text-text-secondary"
+                  >
+                    Never mind
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

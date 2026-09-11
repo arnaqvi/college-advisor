@@ -29,7 +29,7 @@ from app.core.security import (
 )
 from app.models.password_reset import PasswordResetToken
 from app.models.user import User
-from app.routers.billing import upsert_subscription_for_user
+from app.routers.billing import reconcile_expired_cancellation, upsert_subscription_for_user
 from app.schemas.auth import ForgotPasswordIn, LoginIn, RegisterIn, ResetPasswordIn, UserOut
 
 router = APIRouter()
@@ -187,7 +187,14 @@ async def logout(response: Response) -> dict[str, bool]:
 
 
 @router.get("/me", response_model=UserOut)
-async def me(current_user: Annotated[User, Depends(get_current_user)]) -> UserOut:
+async def me(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> UserOut:
+    # Self-heals a scheduled cancellation into an actual tier downgrade once
+    # its paid period has passed — see reconcile_expired_cancellation()'s
+    # docstring in billing.py for why this has to happen lazily, on read.
+    await reconcile_expired_cancellation(db, current_user)
     return _user_out(current_user)
 
 
