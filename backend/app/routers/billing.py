@@ -148,6 +148,7 @@ class SubscriptionOut(BaseModel):
 
 @router.get("/", response_model=dict)
 async def get_billing(db: AsyncSession = Depends(get_db), current_user=Depends(get_current_user)):
+    await reconcile_expired_cancellation(db, current_user)
     # Fetch or create an Account for the current user
     result = await db.execute(select(Account).where(Account.owner_user_id == current_user.id))
     account = result.scalar_one_or_none()
@@ -426,10 +427,53 @@ async def verify_checkout_session(
     return CheckoutVerifyOut(status="paid", plan=plan)
 
 
+async def reconcile_expired_cancellation(db: AsyncSession, user: User) -> None:
+    """Lazily flip tier/status to free/canceled once a scheduled cancellation's
+    paid period has actually ended.
+
+    This app has no inbound Stripe webhook (see this file's module docstring
+    — oauth2-proxy blocks unauthenticated inbound calls), so nothing else
+    would ever notice `current_period_end` has passed and revoke access.
+    Called from `GET /api/auth/me` and `GET /api/billing/` — the two places
+    that hand tier/subscription state back to the client — so it self-heals
+    on the next authenticated read after expiry, the same "confirm on the
+    next real interaction" pattern `verify_checkout_session` uses for
+    payment. A no-op for everyone else (one extra SELECT, no UPDATE) since
+    the condition only trips for an account mid-scheduled-cancellation.
+    """
+    result = await db.execute(select(Account).where(Account.owner_user_id == user.id))
+    account = result.scalar_one_or_none()
+    if account is None:
+        return
+    result = await db.execute(select(Subscription).where(Subscription.account_id == account.id))
+    subscription = result.scalar_one_or_none()
+    if (
+        subscription is not None
+        and subscription.cancel_at_period_end
+        and subscription.status == "active"
+        and subscription.current_period_end is not None
+        and datetime.utcnow() >= subscription.current_period_end
+    ):
+        subscription.status = "canceled"
+        subscription.updated_at = datetime.utcnow()
+        user.tier = "free"
+        await db.commit()
+
+
 @router.post("/cancel", response_model=SubscriptionOut)
 async def cancel_subscription(
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
+    """Schedule cancellation for a real paid subscription — access continues
+    until `current_period_end`, billing just stops there. Someone who prepaid
+    a $79/yr annual plan and cancels after two months keeps the other ten;
+    they aren't cut off the moment they click cancel. `reconcile_expired_
+    cancellation()` above is what actually revokes access once that date
+    arrives. The free plan (no real Stripe subscription behind it — nothing
+    to schedule, no prepaid period to honor) and a subscription Stripe
+    already has no record of both fall back to the old immediate-clear
+    behavior, since there's no real guarantee left to keep in either case.
+    """
     result = await db.execute(select(Account).where(Account.owner_user_id == current_user.id))
     account = result.scalar_one_or_none()
     if account is None:
@@ -440,37 +484,36 @@ async def cancel_subscription(
     if subscription is None:
         raise HTTPException(status_code=404, detail="no active subscription")
 
-    # This app has no inbound Stripe webhook (see this file's module
-    # docstring — oauth2-proxy blocks unauthenticated inbound calls), so
-    # cancellation has to be confirmed with Stripe synchronously here rather
-    # than reconciled later. Mirrors the immediate access-revoke below: cancel
-    # the real subscription right away rather than at period end, so Stripe
-    # billing and local `tier` never disagree about whether the user is paid.
     settings = get_settings()
-    if subscription.stripe_subscription_id and settings.stripe_secret_key:
+    defer_revocation = bool(subscription.stripe_subscription_id and settings.stripe_secret_key)
+    if defer_revocation:
         try:
-            stripe.Subscription.cancel(
-                subscription.stripe_subscription_id, api_key=settings.stripe_secret_key
+            stripe.Subscription.modify(
+                subscription.stripe_subscription_id,
+                cancel_at_period_end=True,
+                api_key=settings.stripe_secret_key,
             )
         except stripe.InvalidRequestError as exc:
             # Already gone on Stripe's side (e.g. canceled manually in the
-            # dashboard already) — nothing left to stop billing on, so let
-            # the local state clear rather than blocking the user on it.
+            # dashboard already) — no real subscription left to honor a
+            # future period on, so fall back to clearing immediately.
             if "No such subscription" not in str(exc):
                 raise HTTPException(
                     status_code=502,
                     detail=f"Stripe couldn't cancel this subscription: {exc.user_message or str(exc)}",
                 ) from exc
+            defer_revocation = False
         except stripe.StripeError as exc:
             raise HTTPException(
                 status_code=502,
                 detail=f"Stripe couldn't cancel this subscription: {exc.user_message or str(exc)}",
             ) from exc
 
-    subscription.status = "canceled"
     subscription.cancel_at_period_end = True
     subscription.updated_at = datetime.utcnow()
-    current_user.tier = "free"
+    if not defer_revocation:
+        subscription.status = "canceled"
+        current_user.tier = "free"
     await db.commit()
     await db.refresh(subscription)
 
@@ -482,3 +525,59 @@ async def cancel_subscription(
         "current_period_end": subscription.current_period_end,
         "trial_end": subscription.trial_end,
     }
+
+
+class RetentionOfferOut(BaseModel):
+    status: str  # "applied"
+    message: str
+
+
+@router.post("/retention-offer", response_model=RetentionOfferOut)
+async def apply_retention_offer(
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
+) -> RetentionOfferOut:
+    """One-time 50%-off coupon on the next renewal — offered on the cancel
+    flow before a cancellation is confirmed (see Pricing.jsx's cancel
+    modal). A Stripe-native `duration="once"` coupon so it consumes itself on
+    the next invoice and can never silently keep discounting future renewals,
+    regardless of billing interval. Doesn't touch local subscription/tier
+    state at all — the existing subscription just renews at half price once.
+    """
+    result = await db.execute(select(Account).where(Account.owner_user_id == current_user.id))
+    account = result.scalar_one_or_none()
+    if account is None:
+        raise HTTPException(status_code=404, detail="account not found")
+
+    result = await db.execute(select(Subscription).where(Subscription.account_id == account.id))
+    subscription = result.scalar_one_or_none()
+    if subscription is None or not subscription.stripe_subscription_id:
+        raise HTTPException(status_code=400, detail="No active paid subscription to discount.")
+
+    settings = get_settings()
+    if not settings.stripe_secret_key:
+        raise HTTPException(
+            status_code=400,
+            detail={"status": "not_configured", "message": "Stripe isn't set up yet."},
+        )
+
+    try:
+        coupon = stripe.Coupon.create(
+            percent_off=50, duration="once", api_key=settings.stripe_secret_key
+        )
+        # `Subscription.modify`'s top-level `coupon` param is gone from this
+        # Stripe API version's typed params (stripe-python 15.4.0) in favor
+        # of a `discounts` list — checked stripe/params/_subscription_modify_
+        # params.py directly rather than trusting a plain `coupon=` kwarg to
+        # still work against the current API.
+        stripe.Subscription.modify(
+            subscription.stripe_subscription_id,
+            discounts=[{"coupon": coupon.id}],
+            api_key=settings.stripe_secret_key,
+        )
+    except stripe.StripeError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Stripe couldn't apply the discount: {exc.user_message or str(exc)}",
+        ) from exc
+
+    return RetentionOfferOut(status="applied", message="50% off has been applied to your next renewal.")

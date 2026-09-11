@@ -445,33 +445,79 @@ async def _register_and_grant_paid_subscription(
 
 
 @pytest.mark.asyncio
-async def test_cancel_cancels_the_real_stripe_subscription(
+async def test_cancel_schedules_stripe_cancellation_and_keeps_access_until_period_end(
     test_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """/cancel must actually stop Stripe billing, not just flip local DB
-    fields — this is the fix for the bug where users kept being charged
-    after "canceling" in-app.
+    """/cancel must schedule cancellation (`cancel_at_period_end=True` via
+    Stripe's `modify`, not an immediate `.cancel()`) and keep the user's tier
+    at "paid" — someone who prepaid a year and cancels after two months keeps
+    the other ten instead of losing access the moment they click cancel.
     """
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         user = await _register_and_grant_paid_subscription(client, test_session, monkeypatch)
 
-        cancel_calls = []
+        modify_calls = []
 
-        def fake_cancel(subscription_id, api_key=None):
-            cancel_calls.append(subscription_id)
-            return SimpleNamespace(id=subscription_id, status="canceled")
+        def fake_modify(subscription_id, cancel_at_period_end=None, api_key=None):
+            modify_calls.append((subscription_id, cancel_at_period_end))
+            return SimpleNamespace(id=subscription_id, cancel_at_period_end=cancel_at_period_end)
 
-        monkeypatch.setattr(stripe.Subscription, "cancel", staticmethod(fake_cancel))
+        monkeypatch.setattr(stripe.Subscription, "modify", staticmethod(fake_modify))
 
         response = await client.post("/api/billing/cancel")
 
     assert response.status_code == 200, response.text
-    assert cancel_calls == ["sub_fake123"]
-    assert response.json()["status"] == "canceled"
+    assert modify_calls == [("sub_fake123", True)]
+    body = response.json()
+    assert body["status"] == "active"  # NOT canceled yet — access continues
+    assert body["billing_interval"] == "month"
+
+    await test_session.refresh(user)
+    assert user.tier == "paid"  # unchanged — the paid-for period hasn't ended
+
+
+@pytest.mark.asyncio
+async def test_reconcile_flips_tier_once_scheduled_cancellation_period_ends(
+    test_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other half of the deferred-cancellation story: once
+    `current_period_end` has actually passed, the next authenticated read
+    (GET /api/auth/me here) must self-heal tier/status to free/canceled —
+    this app has no inbound Stripe webhook to do it any other way.
+    """
+    from datetime import datetime, timedelta
+
+    from sqlalchemy import select as sa_select
+
+    from app.models.billing import Account, Subscription
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        user = await _register_and_grant_paid_subscription(client, test_session, monkeypatch)
+        monkeypatch.setattr(stripe.Subscription, "modify", staticmethod(lambda *a, **k: SimpleNamespace()))
+        await client.post("/api/billing/cancel")
+
+        # Backdate current_period_end into the past, as if the paid period
+        # genuinely ended, without waiting 30 real days in a test.
+        result = await test_session.execute(sa_select(Account).where(Account.owner_user_id == user.id))
+        account = result.scalar_one()
+        result = await test_session.execute(
+            sa_select(Subscription).where(Subscription.account_id == account.id)
+        )
+        subscription = result.scalar_one()
+        subscription.current_period_end = datetime.utcnow() - timedelta(days=1)
+        await test_session.commit()
+
+        me_response = await client.get("/api/auth/me")
+
+    assert me_response.status_code == 200
+    assert me_response.json()["tier"] == "free"
 
     await test_session.refresh(user)
     assert user.tier == "free"
+    await test_session.refresh(subscription)
+    assert subscription.status == "canceled"
 
 
 @pytest.mark.asyncio
@@ -479,23 +525,27 @@ async def test_cancel_treats_already_canceled_stripe_subscription_as_success(
     test_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """If Stripe already has no such subscription (e.g. canceled manually in
-    the dashboard already), don't block the user's local state from clearing.
+    the dashboard already), fall back to clearing local state immediately —
+    there's no real future period left to honor.
     """
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        await _register_and_grant_paid_subscription(client, test_session, monkeypatch)
+        user = await _register_and_grant_paid_subscription(client, test_session, monkeypatch)
 
-        def fake_cancel(subscription_id, api_key=None):
+        def fake_modify(subscription_id, cancel_at_period_end=None, api_key=None):
             raise stripe.InvalidRequestError(
                 "No such subscription: 'sub_fake123'", param="id", code="resource_missing"
             )
 
-        monkeypatch.setattr(stripe.Subscription, "cancel", staticmethod(fake_cancel))
+        monkeypatch.setattr(stripe.Subscription, "modify", staticmethod(fake_modify))
 
         response = await client.post("/api/billing/cancel")
 
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "canceled"
+
+    await test_session.refresh(user)
+    assert user.tier == "free"
 
 
 @pytest.mark.asyncio
@@ -510,10 +560,10 @@ async def test_cancel_surfaces_other_stripe_errors_without_clearing_local_state(
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         user = await _register_and_grant_paid_subscription(client, test_session, monkeypatch)
 
-        def fake_cancel(subscription_id, api_key=None):
+        def fake_modify(subscription_id, cancel_at_period_end=None, api_key=None):
             raise stripe.APIConnectionError("network blip")
 
-        monkeypatch.setattr(stripe.Subscription, "cancel", staticmethod(fake_cancel))
+        monkeypatch.setattr(stripe.Subscription, "modify", staticmethod(fake_modify))
 
         response = await client.post("/api/billing/cancel")
 
@@ -529,7 +579,8 @@ async def test_cancel_without_stripe_subscription_id_skips_stripe_call(
 ) -> None:
     """Free-plan subscriptions (from /subscribe) never get a
     stripe_subscription_id — cancel must still work locally without trying
-    to call Stripe with nothing to cancel.
+    to call Stripe with nothing to cancel, and clears immediately since
+    there's no prepaid period to honor.
     """
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -537,11 +588,64 @@ async def test_cancel_without_stripe_subscription_id_skips_stripe_call(
         await client.post("/api/billing/subscribe", json={"plan": "free"})
 
         def fail_if_called(*args, **kwargs):
-            raise AssertionError("stripe.Subscription.cancel should not be called")
+            raise AssertionError("stripe.Subscription.modify should not be called")
 
-        monkeypatch.setattr(stripe.Subscription, "cancel", staticmethod(fail_if_called))
+        monkeypatch.setattr(stripe.Subscription, "modify", staticmethod(fail_if_called))
 
         response = await client.post("/api/billing/cancel")
 
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "canceled"
+
+
+@pytest.mark.asyncio
+async def test_retention_offer_applies_coupon_to_active_subscription(
+    test_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The cancel-flow win-back offer: a one-time 50%-off coupon applied to
+    the user's existing Stripe subscription, with no local state change.
+    """
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await _register_and_grant_paid_subscription(client, test_session, monkeypatch)
+
+        coupon_calls = []
+        modify_calls = []
+
+        def fake_coupon_create(percent_off=None, duration=None, api_key=None):
+            coupon_calls.append((percent_off, duration))
+            return SimpleNamespace(id="coupon_fake50")
+
+        def fake_modify(subscription_id, discounts=None, api_key=None):
+            modify_calls.append((subscription_id, discounts))
+            return SimpleNamespace(id=subscription_id)
+
+        monkeypatch.setattr(stripe.Coupon, "create", staticmethod(fake_coupon_create))
+        monkeypatch.setattr(stripe.Subscription, "modify", staticmethod(fake_modify))
+
+        response = await client.post("/api/billing/retention-offer")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "applied"
+    assert coupon_calls == [(50, "once")]
+    assert modify_calls == [("sub_fake123", [{"coupon": "coupon_fake50"}])]
+
+
+@pytest.mark.asyncio
+async def test_retention_offer_rejects_free_plan_with_no_subscription(
+    test_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nothing to discount on the free plan — no Stripe call, a clear 400."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await _register_and_login(client)
+        await client.post("/api/billing/subscribe", json={"plan": "free"})
+
+        def fail_if_called(*args, **kwargs):
+            raise AssertionError("Stripe should not be called for a free-plan account")
+
+        monkeypatch.setattr(stripe.Coupon, "create", staticmethod(fail_if_called))
+
+        response = await client.post("/api/billing/retention-offer")
+
+    assert response.status_code == 400
