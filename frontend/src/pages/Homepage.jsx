@@ -66,13 +66,12 @@ const metrics = [
   { value: '87%', label: 'students staying on pace after week four' },
 ]
 
-// `id` must match backend/frontend/src/data/plans.js's Plan ids exactly —
-// that's what Stripe Checkout and registration actually key off. Price/
-// student-count copy below is kept in sync with plans.js BY HAND (marketing
-// wants its own feature bullets, not the terser copy plans.js uses on the
-// real Pricing page) — previously drifted out of sync (this said "$19/mo,
-// up to 3 students" while the real Family plan has always been $25/mo for
-// up to 4), so if either changes, update both files.
+// `id` must match frontend/src/data/plans.js's Plan ids exactly — that's
+// what Stripe Checkout and registration actually key off. Price/feature copy
+// below is kept in sync with plans.js BY HAND (marketing wants its own
+// feature bullets, not the terser copy plans.js uses on the real Pricing
+// page). This has drifted before (twice now — see git history) — if either
+// file's prices change, update both.
 const pricingPlans = [
   {
     id: 'free',
@@ -83,14 +82,14 @@ const pricingPlans = [
   {
     id: 'individual',
     name: 'Pro Student',
-    price: '$9/mo',
+    price: '$19/mo',
     features: ['Unlimited schools and essays', 'Unlimited AI advisor access', 'Full compare tool'],
     featured: true,
   },
   {
     id: 'family',
     name: 'Family Plus',
-    price: '$25/mo',
+    price: '$39/mo',
     features: ['Up to 4 students', 'Shared parent dashboard', 'Everything in Pro'],
   },
 ]
