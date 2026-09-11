@@ -5,10 +5,31 @@
 // "counselor" isn't offered on self-serve sign-up (counsellor accounts are
 // request-access only, see frontend/CLAUDE.md) but is a real backend value
 // for whenever a counsellor account is provisioned.
+// `priceMonthly`/`priceAnnual` (USD, numeric) drive Pricing.jsx's
+// monthly/annual toggle and must match `_CHECKOUT_PLAN_PRICING` in
+// backend/app/routers/billing.py exactly — that dict is the actual source of
+// truth Stripe charges from, this is just the display copy. `price` stays a
+// plain monthly-display string for StudentRegister.jsx/ParentRegister.jsx,
+// which only ever show the monthly rate at sign-up (annual is a Pricing-page
+// upsell, not a sign-up-time decision).
 export const PLANS = [
   { id: 'free', title: 'Free', price: '$0', desc: 'College List only — a great way to start' },
-  { id: 'individual', title: 'Student', price: '$9/mo', desc: 'Full planning toolkit for one student' },
-  { id: 'family', title: 'Family', price: '$25/mo', desc: 'Up to 4 student profiles' },
+  {
+    id: 'individual',
+    title: 'Student',
+    price: '$19/mo',
+    priceMonthly: 19,
+    priceAnnual: 79,
+    desc: 'Full planning toolkit for one student',
+  },
+  {
+    id: 'family',
+    title: 'Family',
+    price: '$39/mo',
+    priceMonthly: 39,
+    priceAnnual: 149,
+    desc: 'Up to 4 student profiles',
+  },
 ]
 
 export const COUNSELOR_PLAN = {
